@@ -17,6 +17,11 @@ go mod tidy
 go get github.com/joho/godotenv
 go get github.com/go-sql-driver/mysql
 
+mkdir db/migrations
+
+- cai migrate
+go install -tags 'mysql' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
 
 --- run
 cd proj_1
@@ -24,7 +29,16 @@ cd monolith
 
 go run cmd/main.go
 
+
 --- migrate
+cd proj_1
+cd monolith
+
+- tao bang migrate
+migrate -path db/migrations -database "mysql://gowallet_user:gowallet_password@tcp(localhost:3306)/gowallet" up
+
+- chay bang makefile
+make migrateup 
 
 
 --- docker

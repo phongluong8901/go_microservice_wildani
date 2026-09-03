@@ -25,9 +25,9 @@ func ConnectWithRetry(dsn string) (*sql.DB, error) {
 				log.Printf("Database connected successfully\n")
 
 				//setup connection pool progression
-				db.SetMaxOpenConns(25)
-				db.SetMaxIdleConns(25)
-				db.SetConnMaxLifetime(5 * time.Minute)
+				db.SetMaxOpenConns(25)                 //Giới hạn tối đa 25 kết nối đồng thời được mở tới cơ sở dữ liệu cùng một lúc
+				db.SetMaxIdleConns(25)                 //Số lượng kết nối tối đa mà “idle pool” (bộ đệm kết nối chờ) được phép giữ lại.
+				db.SetConnMaxLifetime(5 * time.Minute) //Thời gian tối đa mà một kết nối được phép tồn tại
 
 				return db, nil
 			}
