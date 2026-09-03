@@ -1,0 +1,27 @@
+--- source
+
+
+--- install
+cd proj_1
+mkdir monolith/cmd, monolith/internal/config, monolith/internal/database
+
+--- run
+cd proj_1
+
+--- migrate
+
+
+--- docker
+
+
+--- deploy
+
+
+--- monitoring
+
+
+--- git
+git add .
+git commit -m "first"
+git checkout -b p1_setup
+git push -u origin p1_setup
