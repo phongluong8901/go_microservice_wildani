@@ -33,3 +33,9 @@ git checkout -b p5_transactions_commit_rollback
 git add .
 git commit -m "change: first"
 git push -u origin p5_transactions_commit_rollback
+
+# ---
+git checkout -b p6_double_ledger
+git add .
+git commit -m "change: first"
+git push -u origin p6_double_ledger
