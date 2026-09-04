@@ -1,11 +1,11 @@
 package main
 
 import (
-	"log"
 	"os"
 
 	"github.com/bashocode/gowallet/monolith/internal/config"
 	"github.com/bashocode/gowallet/monolith/internal/database"
+	"github.com/bashocode/gowallet/monolith/internal/logger"
 	userHandler "github.com/bashocode/gowallet/monolith/internal/user/handler"
 	userRepository "github.com/bashocode/gowallet/monolith/internal/user/repository"
 	userServer "github.com/bashocode/gowallet/monolith/internal/user/service"
@@ -13,7 +13,9 @@ import (
 )
 
 func main() {
-	log.Println("Starting Monolith Wallet Application...")
+	//initialize the lo
+	logger.InitLogger()
+	logger.Log.Info("Starting Monolith Wallet Application...")
 
 	//1. Load configuration
 	cfg := config.LoadConfig()
@@ -21,12 +23,10 @@ func main() {
 	//2. Connect to database with retry
 	db, err := database.ConnectWithRetry(cfg.DBSN)
 	if err != nil {
-		log.Fatal("Critical Error: Could not connect to database after retries", "error", err)
+		logger.Log.Error("Critical Error: Could not connect to database after retries", "error", err)
 		os.Exit(1)
 	}
 	defer db.Close()
-
-	log.Println("Application successfully initialized ...")
 
 	//1. initiate layer
 	uRepo := userRepository.NewMySqlUserRepository(db)
@@ -41,10 +41,10 @@ func main() {
 	r.GET("/api.v1.users/:id", uHandler.GetProfile)
 	r.PUT("/api.v1.users/:id", uHandler.UpdateProfile)
 
-	// strat server
-	log.Println("Server running on Port 8080...")
+	// start server
+	logger.Log.Info("Server running on Port 8080...")
 	if err := r.Run(":8080"); err != nil {
-		log.Fatalf("Server failed to run: %v", err)
+		logger.Log.Error("Server failed to run", "error", err)
 		os.Exit(1)
 	}
 }

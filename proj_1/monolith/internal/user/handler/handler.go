@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 
+	customError "github.com/bashocode/gowallet/monolith/internal/errors"
 	"github.com/bashocode/gowallet/monolith/internal/user/model"
 	"github.com/bashocode/gowallet/monolith/internal/user/service"
 	"github.com/gin-gonic/gin"
@@ -23,14 +24,16 @@ func (h *UserHandler) Register(c *gin.Context) {
 	var req model.CreateUserRequest
 	//Đọc và parse dữ liệu JSON từ HTTP Body của client vào struct CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		//register the error input to gin context
+		c.Error(customError.NewAppError(http.StatusBadRequest, "INVALID_ID_INPUT", err.Error()))
 		return
 	}
 
 	//Gọi tầng service để thực hiện logic đăng ký.
 	user, err := h.svc.Register(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		//register the error to middleware
+		c.Error(err)
 		return
 	}
 
@@ -44,7 +47,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	//Gọi service để lấy thông tin user từ database
 	user, err := h.svc.GetProfile(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.Error(err)
 		return
 	}
 
@@ -59,14 +62,14 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	//Parse dữ liệu JSON cập nhật mới từ client vào struct UpdateUserRequest.
 	var req model.UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.Error(customError.NewAppError(http.StatusBadRequest, "INVALID_ID_INPUT", err.Error()))
 		return
 	}
 
 	//Gọi tầng service để cập nhật thông tin trong database và trả về user sau khi đã thay đổi thành công kèm mã 200 OK.
 	user, err := h.svc.UpdateProfile(c.Request.Context(), id, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.Error(err)
 		return
 	}
 
