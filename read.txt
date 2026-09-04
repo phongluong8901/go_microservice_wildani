@@ -1,18 +1,72 @@
 --- source
-
+https://github.com/bashocode/gowallet
 
 --- install
 cd proj_1
 mkdir monolith/cmd, monolith/internal/config, monolith/internal/database
 
+cd monolith
+
+go mod init
+go version
+
+go mod init github.com/bashocode/gowallet/monolith
+
+go mod tidy
+
+go get github.com/joho/godotenv
+go get github.com/go-sql-driver/mysql
+
+mkdir db/migrations
+
+- cai migrate
+go install -tags 'mysql' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
+go get github.com/gin-gonic/gin
+go get github.com/google/uuid
+go get golang.org/x/crypto/bcrypt
+
+mkdir internal/user/handler, internal/user/service, internal/user/repository, internal/user/model
+
+mkdir -p internal/wallet/model, internal/wallet/handler, internal/wallet/repository, internal/wallet/service
+
+mkdir internal/ledger/model, internal/ledger/handler, internal/ledger/repository, internal/ledger/service
+
+mkdir internal/transaction/model, internal/transaction/repository, internal/transaction/service, internal/transaction/handler
+
 --- run
 cd proj_1
+cd monolith
+
+go run cmd/main.go
+
 
 --- migrate
+cd proj_1
+cd monolith
+
+- tao bang migrate
+migrate -path db/migrations -database "mysql://gowallet_user:gowallet_password@tcp(localhost:3306)/gowallet" up
+
+- chay bang makefile
+make migrateup 
 
 
 --- docker
+cd proj_1
+cd monolith
 
+docker compose up -d
+
+docker compose down
+
+
+--- ket noi dbever
+- allowPublicKeyRetrievel true
+
+127.0.0.1
+gowallet_user
+gowallet_password
 
 --- deploy
 
