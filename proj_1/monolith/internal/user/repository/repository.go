@@ -15,6 +15,7 @@ type UserRepository interface {
 	GetByID(ctx context.Context, id string) (*model.User, error)
 	GetByEmail(ctx context.Context, email string) (*model.User, error)
 	Update(ctx context.Context, u *model.User) error
+	CreateTx(ctx context.Context, tx *sql.Tx, u *model.User) error
 }
 
 // Struct chứa kết nối cơ sở dữ liệu db *sql.DB
@@ -85,5 +86,11 @@ func (r *mysqlUserRepository) Update(ctx context.Context, u *model.User) error {
 	//để cập nhật tên mới cho người dùng dựa theo ID của họ
 	query := `UPDATE users SET full_name = ? WHERE id = ?`
 	_, err := r.db.ExecContext(ctx, query, u.FullName, u.ID)
+	return err
+}
+
+func (r *mysqlUserRepository) CreateTx(ctx context.Context, tx *sql.Tx, u *model.User) error {
+	query := `INSERT INTO users (id, full_name, email, password_hash) VALUES (?, ?, ?, ?)`
+	_, err := tx.ExecContext(ctx, query, u.ID, u.FullName, u.Email, u.PasswordHash)
 	return err
 }

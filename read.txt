@@ -28,6 +28,7 @@ go get golang.org/x/crypto/bcrypt
 
 mkdir internal/user/handler, internal/user/service, internal/user/repository, internal/user/model
 
+mkdir -p internal/wallet/model, internal/wallet/handler, internal/wallet/repository, internal/wallet/service
 
 --- run
 cd proj_1
