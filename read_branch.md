@@ -39,3 +39,9 @@ git checkout -b p6_double_ledger
 git add .
 git commit -m "change: first"
 git push -u origin p6_double_ledger
+
+# ---
+git checkout -b p7_optimistic_idempotency
+git add .
+git commit -m "change: first"
+git push -u origin p7_optimistic_idempotency
