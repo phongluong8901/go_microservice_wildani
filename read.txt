@@ -22,6 +22,12 @@ mkdir db/migrations
 - cai migrate
 go install -tags 'mysql' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 
+go get github.com/gin-gonic/gin
+go get github.com/google/uuid
+go get golang.org/x/crypto/bcrypt
+
+mkdir internal/user/handler, internal/user/service, internal/user/repository, internal/user/model
+
 
 --- run
 cd proj_1
