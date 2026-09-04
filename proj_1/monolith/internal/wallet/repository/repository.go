@@ -6,12 +6,14 @@ import (
 	"errors"
 
 	"github.com/bashocode/gowallet/monolith/internal/wallet/model"
+	"github.com/shopspring/decimal"
 )
 
 // Định nghĩa các phương thức thao tác database cho v
 type WalletRepository interface {
 	CreateTx(ctx context.Context, tx *sql.Tx, w *model.Wallet) error
 	GetByUserID(ctx context.Context, userID string) (*model.Wallet, error)
+	UpdateBalanceTx(ctx context.Context, tx *sql.Tx, walletID string, amount decimal.Decimal, currentVersion int) error
 }
 
 // Struct lưu giữ kết nối db *sql.DB để thực thi câu lệnh SQL.
@@ -55,4 +57,26 @@ func (r *mysqlWalletRepository) GetByUserID(ctx context.Context, userID string) 
 		return nil, err
 	}
 	return w, nil
+}
+
+func (r *mysqlWalletRepository) UpdateBalanceTx(ctx context.Context, tx *sql.Tx, walletID string, amount decimal.Decimal, currentVersion int) error {
+	query := `UPDATE wallets
+              SET balance = balance - ?, version = version + 1
+              WHERE id = ? AND version = ? AND balance >= ?`
+	result, err := tx.ExecContext(ctx, query, amount, walletID, currentVersion, amount)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	// if 0 rows affected, it means concurrent update detected or insufficient balance
+	if rowsAffected == 0 {
+		return errors.New("concurrent update detected or insufficient balance")
+	}
+
+	return nil
 }

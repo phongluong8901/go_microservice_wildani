@@ -32,6 +32,8 @@ mkdir -p internal/wallet/model, internal/wallet/handler, internal/wallet/reposit
 
 mkdir internal/ledger/model, internal/ledger/handler, internal/ledger/repository, internal/ledger/service
 
+mkdir internal/transaction/model, internal/transaction/repository, internal/transaction/service, internal/transaction/handler
+
 --- run
 cd proj_1
 cd monolith
