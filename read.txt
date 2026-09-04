@@ -30,6 +30,8 @@ mkdir internal/user/handler, internal/user/service, internal/user/repository, in
 
 mkdir -p internal/wallet/model, internal/wallet/handler, internal/wallet/repository, internal/wallet/service
 
+mkdir internal/ledger/model, internal/ledger/handler, internal/ledger/repository, internal/ledger/service
+
 --- run
 cd proj_1
 cd monolith

@@ -19,6 +19,7 @@ func (h *WalletHandler) GetMyWallet(c *gin.Context) {
 	//user_id from jwt context
 	userID, _ := c.Get("user_id")
 
+	//: Gọi tầng service để truy vấn thông tin ví của người dùng dựa theo userID.
 	wallet, err := h.svc.GetWalletByUserID(c.Request.Context(), userID.(string))
 	if err != nil {
 		c.Error(err)

@@ -24,6 +24,7 @@ func NewWalletService(repo repository.WalletRepository) WalletService {
 }
 
 func (s *walletService) GetWalletByUserID(ctx context.Context, userID string) (*model.Wallet, error) {
+	// go to repo to get wallet by userID
 	w, err := s.repo.GetByUserID(ctx, userID)
 	if err != nil {
 		return nil, customError.NewAppError(http.StatusNotFound, "Wallet Not Found", "wallet not found")
