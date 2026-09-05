@@ -57,3 +57,9 @@ git checkout -b p9_unitTest
 git add .
 git commit -m "change: first"
 git push -u origin p9_unitTest
+
+# ---
+git checkout -b p10_swagger
+git add .
+git commit -m "change: first"
+git push -u origin p10_swagger
