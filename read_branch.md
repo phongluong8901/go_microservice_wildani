@@ -45,3 +45,9 @@ git checkout -b p7_optimistic_idempotency
 git add .
 git commit -m "change: first"
 git push -u origin p7_optimistic_idempotency
+
+# ---
+git checkout -b p8_softdelete_upload_pagnition
+git add .
+git commit -m "change: first"
+git push -u origin p8_softdelete_upload_pagnition
