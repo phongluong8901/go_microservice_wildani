@@ -43,6 +43,8 @@ go get github.com/swaggo/files
 
 go get github.com/redis/go-redis/v9
 
+go get github.com/robfig/cron/v3
+
 --- run
 cd proj_1
 cd monolith

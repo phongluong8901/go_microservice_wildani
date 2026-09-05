@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	_ "github.com/bashocode/gowallet/monolith/docs"
@@ -13,6 +17,7 @@ import (
 	ledgerRepository "github.com/bashocode/gowallet/monolith/internal/ledger/repository"
 	"github.com/bashocode/gowallet/monolith/internal/logger"
 	"github.com/bashocode/gowallet/monolith/internal/middleware"
+	"github.com/bashocode/gowallet/monolith/internal/scheduler"
 	txHandler "github.com/bashocode/gowallet/monolith/internal/transaction/handler"
 	txRepository "github.com/bashocode/gowallet/monolith/internal/transaction/repository"
 	txService "github.com/bashocode/gowallet/monolith/internal/transaction/service"
@@ -80,6 +85,10 @@ func main() {
 	wHandler := walletHandler.NewWalletHandler(wSvc)
 	tHandler := txHandler.NewTransactionHandler(tSvc)
 
+	// start conjob
+	cronSched := scheduler.NewScheduler(db, wRepo, lRepo)
+	cronSched.Start() //Kích hoạt một tiến trình chạy ngầm (background goroutine). Từ khoảnh khắc này, các mốc thời gian bạn đã cấu hình sẽ bắt đầu đếm ngược và tự động thực thi đúng giờ.
+
 	//2. Setup gin router
 	// r := gin.Default()
 	r := gin.New()
@@ -119,10 +128,43 @@ func main() {
 		}
 	}
 
-	// start server
-	logger.Log.Info("Server running on Port 8080...")
-	if err := r.Run(":8080"); err != nil {
-		logger.Log.Error("Server failed to run", "error", err)
-		os.Exit(1)
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
 	}
+
+	// run server in separate goroutine
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Log.Error("Server failed to run", "error", err)
+		}
+	}()
+
+	// start server
+	//Graceful Shutdown (Tắt ứng dụng an toàn). Mục đích là để server không bị ngắt đột ngột làm hỏng dữ liệu hoặc cắt đứt ngang các request mà người dùng đang gửi lên.
+	logger.Log.Info("Server running on Port 8080...")
+	// graceful shutdown - wait for signal from os
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	//Lệnh <-quit có nhiệm vụ chặn (block) luồng chính tại đây. Nhờ có nó, ứng dụng cứ tiếp tục chạy bình thường phục vụ người dùng cho đến khi có tín hiệu dừng được gửi tới.
+	<-quit
+
+	logger.Log.Info("Server shutting down gracefully...")
+
+	// give 10 seconds to complet in-flight requests
+	//Gọi hàm này thay vì tắt ngang để server ngừng nhận request mới nhưng vẫn cố gắng xử lý cho xong xuôi các request đang chạy dở (in-flight requests) trong giới hạn 10 giây vừa cấp.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Log.Error("Server forced to shutdown", "error", err)
+
+	}
+
+	// stop scheduler after http server shutdown
+	//Sau khi HTTP server đã đóng xong, tiến hành dừng luôn các luồng cron job đang chạy ngầm để giải phóng hoàn toàn tài nguyên hệ thống.
+	cronSched.Stop()
+
+	logger.Log.Info("Server exited gracefully")
+
 }
