@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	walletModel "github.com/bashocode/gowallet/monolith/internal/wallet/model"
 	walletRepo "github.com/bashocode/gowallet/monolith/internal/wallet/repository"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -26,19 +28,22 @@ type UserService interface {
 	Login(ctx context.Context, req model.LoginRequest) (*model.LoginResponse, error)
 	UpdateAvatar(ctx context.Context, id string, path string) error
 	DeleteAccount(ctx context.Context, id string) error
+	Logout(ctx context.Context, tokenString string) error
 }
 
 // Struct ẩn chứa dependency để giao tiếp với cơ sở dữ liệu.
 type userService struct {
 	db         *sql.DB
+	rdb        *redis.Client
 	userRepo   userRepo.UserRepository
 	walletRepo walletRepo.WalletRepository
 }
 
 // Hàm khởi tạo trả về interface UserService, áp dụng mô hình Dependency Injection.
-func NewUserService(db *sql.DB, uRepo repository.UserRepository, wRepo walletRepo.WalletRepository) UserService {
+func NewUserService(db *sql.DB, rdb *redis.Client, uRepo repository.UserRepository, wRepo walletRepo.WalletRepository) UserService {
 	return &userService{
 		db:         db,
+		rdb:        rdb,
 		userRepo:   uRepo,
 		walletRepo: wRepo,
 	}
@@ -176,6 +181,31 @@ func (s *userService) DeleteAccount(ctx context.Context, id string) error {
 	}
 
 	if err := s.userRepo.SoftDelete(ctx, user.ID); err != nil {
+		return customError.ErrInternalServer
+	}
+
+	return nil
+}
+
+func (s *userService) Logout(ctx context.Context, tokenString string) error {
+	// validate token
+	claims, err := auth.ValidateToken(tokenString)
+	if err != nil {
+		return customError.NewAppError(http.StatusUnauthorized, "INVALID_TOKEN", "token is invalid or expired.")
+	}
+
+	// calculate the remaining active token
+	expirationTime := claims.ExpiresAt.Time
+	timeLeft := time.Until(expirationTime)
+
+	if timeLeft <= 0 {
+		return nil // token already expired, no need to blacklist
+	}
+
+	// insert into redis blacklist
+	blacklistKey := fmt.Sprintf("blacklist:%s", tokenString)
+	err = s.rdb.Set(ctx, blacklistKey, "logged_out", timeLeft).Err()
+	if err != nil {
 		return customError.ErrInternalServer
 	}
 

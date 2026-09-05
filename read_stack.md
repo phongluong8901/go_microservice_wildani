@@ -88,3 +88,11 @@ if not then query from mysql, save to redis, return
 always initiate on write, when balance increase/decresae (after transfer)
 we must delete the cache key in redis, so the next balance will from mysql
 
+7. rate limmiting and JWT blacklisting
+secure API from brute forece/absue attack, redfis based rate limmiting
+create logout feature, to blackist jwt in redis
+
+API max 60 req/ minutes 429 too manu reqeust if exceeded
+save the key rate_limit ip_address:minutes
+
+jwt, token is blacklisted, 410 gone

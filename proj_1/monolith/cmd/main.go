@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"time"
 
 	_ "github.com/bashocode/gowallet/monolith/docs"
 	swaggerFiles "github.com/swaggo/files"
@@ -17,7 +18,7 @@ import (
 	txService "github.com/bashocode/gowallet/monolith/internal/transaction/service"
 	userHandler "github.com/bashocode/gowallet/monolith/internal/user/handler"
 	userRepository "github.com/bashocode/gowallet/monolith/internal/user/repository"
-	userServer "github.com/bashocode/gowallet/monolith/internal/user/service"
+	userService "github.com/bashocode/gowallet/monolith/internal/user/service"
 	walletHandler "github.com/bashocode/gowallet/monolith/internal/wallet/handler"
 	walletRepository "github.com/bashocode/gowallet/monolith/internal/wallet/repository"
 	walletService "github.com/bashocode/gowallet/monolith/internal/wallet/service"
@@ -70,7 +71,7 @@ func main() {
 	tRepo := txRepository.NewMySQLTransactionRepository(db)
 
 	//inject db to user service for transaction
-	uSvc := userServer.NewUserService(db, uRepo, wRepo)
+	uSvc := userService.NewUserService(db, rdb, uRepo, wRepo)
 	wSvc := walletService.NewWalletService(wRepo, rdb)
 	tSvc := txService.NewTransactionService(db, rdb, tRepo, uRepo, wRepo, lRepo)
 
@@ -87,6 +88,9 @@ func main() {
 	//Register global error handling middlware
 	r.Use(middleware.ErrorHandler())
 
+	// apply global rate limiter max 60 request per minutes per ip
+	r.Use(middleware.RateLimiter(rdb, 60, time.Minute))
+
 	//register the swagger api
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
@@ -99,13 +103,14 @@ func main() {
 
 		// Protected routes (requires valid JWT token)
 		protected := v1.Group("")
-		protected.Use(middleware.AuthMiddleware())
+		protected.Use(middleware.AuthMiddleware(rdb))
 		{
 			protected.GET("/users/me", uHandler.GetProfileMe)
 			protected.POST("/users/avatar", uHandler.UploadAvatar)
 			protected.PUT("/users/:id", uHandler.UpdateProfile)
 			protected.GET("/users/:id", uHandler.GetProfile) //use redis (rq1: 41ms, rq2: 3ms)
 			protected.DELETE("/users/me", uHandler.DeleteAccount)
+			protected.POST("/users/logout", uHandler.Logout)
 
 			protected.GET("/wallets/me", wHandler.GetMyWallet)
 
