@@ -60,16 +60,20 @@ func (r *mysqlTransactionRepository) GetByIdempotencyKey(ctx context.Context, ke
 	return t, nil
 }
 
+// GetHistory thực hiện truy vấn lịch sử giao dịch của một ví
 func (r *mysqlTransactionRepository) GetHistory(ctx context.Context, walletID string, params model.PaginationParams) ([]model.Transaction, int64, error) {
 	// counting total data for pagination meta
 	countQuery := `SELECT COUNT(*) FROM transactions WHERE (sender_wallet_id) = ? OR receiver_wallet_id = ?`
 	var total int64
 	var err error
 
+	// Nếu có truyền thêm bộ lọc trạng thái (status), nối thêm điều kiện vào câu lệnh đếm.
 	if params.Status != "" {
 		countQuery += " AND status = ?"
+		// Thực thi câu lệnh đếm với tham số trạng thái kèm theo.
 		err = r.db.QueryRowContext(ctx, countQuery, walletID, walletID, params.Status).Scan(&total)
 	} else {
+		// Thực thi câu lệnh đếm không có tham số trạng thái.
 		err = r.db.QueryRowContext(ctx, countQuery, walletID, walletID).Scan(&total)
 	}
 
@@ -84,11 +88,13 @@ func (r *mysqlTransactionRepository) GetHistory(ctx context.Context, walletID st
 		sortColumn = "amount"
 	}
 
+	// Thiết lập thứ tự sắp xếp mặc định là giảm dần (DESC).
 	sortOrder := "DESC"
 	if params.Order == "asc" {
 		sortOrder = "ASC"
 	}
 
+	// Khai báo câu lệnh SQL lấy dữ liệu phân trang cho các giao dịch liên quan đến ví.
 	query := `SELECT id, sender_wallet_id, receiver_wallet_id,
 				amount, description, idempotency_key, status, created_at
 			FROM transactions WHERE (sender_wallet_id = ? OR

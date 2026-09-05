@@ -14,9 +14,11 @@ import (
 
 	"github.com/bashocode/gowallet/monolith/internal/config"
 	"github.com/bashocode/gowallet/monolith/internal/database"
+	"github.com/bashocode/gowallet/monolith/internal/email"
 	ledgerRepository "github.com/bashocode/gowallet/monolith/internal/ledger/repository"
 	"github.com/bashocode/gowallet/monolith/internal/logger"
 	"github.com/bashocode/gowallet/monolith/internal/middleware"
+	otpRepository "github.com/bashocode/gowallet/monolith/internal/otp/repository"
 	"github.com/bashocode/gowallet/monolith/internal/scheduler"
 	txHandler "github.com/bashocode/gowallet/monolith/internal/transaction/handler"
 	txRepository "github.com/bashocode/gowallet/monolith/internal/transaction/repository"
@@ -69,6 +71,10 @@ func main() {
 	}
 	defer rdb.Close()
 
+	// initiate email sender & otp repository
+	emailSender := email.NewSMTPEmailSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom)
+	otpRepo := otpRepository.NewMySQLOTPRRepository(db)
+
 	//1. initiate layer
 	uRepo := userRepository.NewMySqlUserRepository(db)
 	wRepo := walletRepository.NewMySQLWalletRepository(db)
@@ -76,7 +82,7 @@ func main() {
 	tRepo := txRepository.NewMySQLTransactionRepository(db)
 
 	//inject db to user service for transaction
-	uSvc := userService.NewUserService(db, rdb, uRepo, wRepo)
+	uSvc := userService.NewUserService(db, rdb, uRepo, wRepo, otpRepo, emailSender)
 	wSvc := walletService.NewWalletService(wRepo, rdb)
 	tSvc := txService.NewTransactionService(db, rdb, tRepo, uRepo, wRepo, lRepo)
 
@@ -120,6 +126,7 @@ func main() {
 			protected.GET("/users/:id", uHandler.GetProfile) //use redis (rq1: 41ms, rq2: 3ms)
 			protected.DELETE("/users/me", uHandler.DeleteAccount)
 			protected.POST("/users/logout", uHandler.Logout)
+			protected.POST("/users/verify-email", uHandler.VerifyEmail)
 
 			protected.GET("/wallets/me", wHandler.GetMyWallet)
 

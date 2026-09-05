@@ -23,12 +23,14 @@ func NewMySQLWalletRepository(db *sql.DB) WalletRepository {
 	return &mysqlWalletRepository{db: db}
 }
 
+// CreateTx thực hiện câu lệnh SQL thêm mới một ví tiền (wallet)
 func (r *mysqlWalletRepository) CreateTx(ctx context.Context, tx *sql.Tx, w *model.Wallet) error {
 	query := "INSERT INTO wallets (id, user_id, balance, currency, status) VALUES (?, ?, ?, ?, ?)"
 	_, err := tx.ExecContext(ctx, query, w.ID, w.UserID, w.Balance, w.Currency, w.Status)
 	return err
 }
 
+// GetByUserID thực hiện truy vấn thông tin chi tiết của ví
 func (r *mysqlWalletRepository) GetByUserID(ctx context.Context, userID string) (*model.Wallet, error) {
 	query := `SELECT id, user_id, balance, currency, status, version, created_at, updated_at FROM wallets WHERE user_id = ?`
 	w := &model.Wallet{}
@@ -51,6 +53,7 @@ func (r *mysqlWalletRepository) GetByUserID(ctx context.Context, userID string) 
 	return w, nil
 }
 
+// UpdateBalanceTx cập nhật số dư ví và áp dụng cơ chế khóa lạc quan (Optimistic Locking) thông qua version để tránh xung đột đồng thời.
 func (r *mysqlWalletRepository) UpdateBalanceTx(ctx context.Context, tx *sql.Tx, walletID string, newBalance decimal.Decimal, currentVersion int) error {
 	query := `UPDATE wallets SET balance = ?, version = version + 1 WHERE id = ? AND version = ?`
 	result, err := tx.ExecContext(ctx, query, newBalance, walletID, currentVersion)

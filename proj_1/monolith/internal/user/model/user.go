@@ -7,6 +7,8 @@ type User struct {
 	FullName     string     `json:"full_name"`
 	Email        string     `json:"email"`
 	PasswordHash string     `json:"-"` // don't expose hash password to json //Dấu "-" bảo vệ an toàn bằng cách ẩn trường này đi, không bao giờ trả về password hash trong phản hồi JSON.
+	AvatarURL    *string    `json:"avatar_url,omitempty"`
+	IsVerified   bool       `json:"is_verified"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
 	DeletedAt    *time.Time `json:"deleted_at,omitempty"`

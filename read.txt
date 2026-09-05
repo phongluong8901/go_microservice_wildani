@@ -59,13 +59,17 @@ cd monolith
 - tao bang migrate
 migrate -path db/migrations -database "mysql://gowallet_user:gowallet_password@tcp(localhost:3306)/gowallet" up
 
-- chay bang makefile
+- chay bang makefile(tao db tu cac file .sql)
 make migrateup 
 
 --- migrate version DB
-swag init -g cmd/main.go --parseDepth 3
+- tao file .sql de tuong tac DB
+migrate create -ext sql -dir db/migrations -seq add_avatar_url_to_users
+migrate create -ext sql -dir db/migrations -seq create_otp_table
+migrate create -ext sql -dir db/migrations -seq add_is_verified
 
-http://localhost:8080/swagger/index.html#/
+--- mail hog
+http://localhost:8025/
 
 --- docker
 cd proj_1
@@ -87,7 +91,10 @@ gowallet_password
 cd proj_1
 cd monolith
 
-swag init -g ./cmd/main.go --parseInternal --parseDependency
+swag init -g cmd/main.go --parseDepth 3
+
+-
+http://localhost:8080/swagger/index.html#/
 
 --- unit test
 go test ./...
