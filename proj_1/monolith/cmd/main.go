@@ -56,6 +56,13 @@ func main() {
 	}
 	defer db.Close()
 
+	// connect to redis
+	rdb, err := database.ConnectRedis(cfg.RedisAddr)
+	if err != nil {
+		logger.Log.Error("Critical Error: Could not connect to Redis", "error", err)
+	}
+	defer rdb.Close()
+
 	//1. initiate layer
 	uRepo := userRepository.NewMySqlUserRepository(db)
 	wRepo := walletRepository.NewMySQLWalletRepository(db)
@@ -64,8 +71,8 @@ func main() {
 
 	//inject db to user service for transaction
 	uSvc := userServer.NewUserService(db, uRepo, wRepo)
-	wSvc := walletService.NewWalletService(wRepo)
-	tSvc := txService.NewTransactionService(db, tRepo, uRepo, wRepo, lRepo)
+	wSvc := walletService.NewWalletService(wRepo, rdb)
+	tSvc := txService.NewTransactionService(db, rdb, tRepo, uRepo, wRepo, lRepo)
 
 	// handler layer
 	uHandler := userHandler.NewUserHandler(uSvc)
@@ -96,6 +103,8 @@ func main() {
 		{
 			protected.GET("/users/me", uHandler.GetProfileMe)
 			protected.POST("/users/avatar", uHandler.UploadAvatar)
+			protected.PUT("/users/:id", uHandler.UpdateProfile)
+			protected.GET("/users/:id", uHandler.GetProfile) //use redis (rq1: 41ms, rq2: 3ms)
 			protected.DELETE("/users/me", uHandler.DeleteAccount)
 
 			protected.GET("/wallets/me", wHandler.GetMyWallet)

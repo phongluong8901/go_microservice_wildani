@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	ledgerRepo "github.com/bashocode/gowallet/monolith/internal/ledger/repository"
@@ -13,6 +14,7 @@ import (
 	userRepo "github.com/bashocode/gowallet/monolith/internal/user/repository"
 	walletModel "github.com/bashocode/gowallet/monolith/internal/wallet/model"
 	walletRepo "github.com/bashocode/gowallet/monolith/internal/wallet/repository"
+	"github.com/go-redis/redismock/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -29,8 +31,9 @@ func TestTransfer_Success(t *testing.T) {
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
 	mockLedgerRepo := new(ledgerRepo.MockLedgerRepository)
+	rdb, mockRedis := redismock.NewClientMock()
 
-	svc := NewTransactionService(db, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
+	svc := NewTransactionService(db, rdb, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
 
 	ctx := context.TODO()
 	senderUserID := "sender-123"
@@ -60,14 +63,19 @@ func TestTransfer_Success(t *testing.T) {
 	mockWalletRepo.On("GetByUserID", ctx, "receiver-123").Return(receiverWallet, nil)
 
 	// 4. Update balances
-	mockWalletRepo.On("UpdateBalanceTx", ctx, mock.Anything, senderWallet.ID, decimal.NewFromFloat(800.0), senderWallet.Version).Return(nil)
-	mockWalletRepo.On("UpdateBalanceTx", ctx, mock.Anything, receiverWallet.ID, decimal.NewFromFloat(700.0), receiverWallet.Version).Return(nil)
+	mockWalletRepo.On("UpdateBalanceTx", ctx, mock.Anything, senderWallet.ID, 800.0, senderWallet.Version).Return(nil)
+	mockWalletRepo.On("UpdateBalanceTx", ctx, mock.Anything, receiverWallet.ID, 700.0, receiverWallet.Version).Return(nil)
 
 	// 5. Create transaction
 	mockTxRepo.On("CreateTx", ctx, mock.Anything, mock.Anything).Return(nil)
 
 	// 6. Create ledger entries
 	mockLedgerRepo.On("CreateTx", ctx, mock.Anything, mock.Anything).Return(nil).Twice()
+
+	// 7. Expect cache invalidation
+	senderCacheKey := "wallet:user:" + senderUserID
+	receiverCacheKey := "wallet:user:" + receiverUser.ID
+	mockRedis.ExpectDel(senderCacheKey, receiverCacheKey).SetVal(2)
 
 	txRes, err := svc.Transfer(ctx, senderUserID, req)
 
@@ -76,10 +84,14 @@ func TestTransfer_Success(t *testing.T) {
 	assert.Equal(t, "success", txRes.Status)
 	assert.Equal(t, req.Amount, txRes.Amount)
 
+	// Sleep slightly to let the async Redis Del goroutine complete
+	time.Sleep(10 * time.Millisecond)
+
 	mockTxRepo.AssertExpectations(t)
 	mockUserRepo.AssertExpectations(t)
 	mockWalletRepo.AssertExpectations(t)
 	mockLedgerRepo.AssertExpectations(t)
+	assert.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
 func TestTransfer_IdempotencyCached(t *testing.T) {
@@ -90,8 +102,9 @@ func TestTransfer_IdempotencyCached(t *testing.T) {
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
 	mockLedgerRepo := new(ledgerRepo.MockLedgerRepository)
+	rdb, _ := redismock.NewClientMock()
 
-	svc := NewTransactionService(db, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
+	svc := NewTransactionService(db, rdb, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
 
 	ctx := context.TODO()
 	senderUserID := "sender-123"
@@ -119,8 +132,9 @@ func TestTransfer_ReceiverNotFound(t *testing.T) {
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
 	mockLedgerRepo := new(ledgerRepo.MockLedgerRepository)
+	rdb, _ := redismock.NewClientMock()
 
-	svc := NewTransactionService(db, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
+	svc := NewTransactionService(db, rdb, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
 
 	ctx := context.TODO()
 	senderUserID := "sender-123"
@@ -146,8 +160,9 @@ func TestTransfer_SelfTransferNotAllowed(t *testing.T) {
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
 	mockLedgerRepo := new(ledgerRepo.MockLedgerRepository)
+	rdb, _ := redismock.NewClientMock()
 
-	svc := NewTransactionService(db, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
+	svc := NewTransactionService(db, rdb, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
 
 	ctx := context.TODO()
 	senderUserID := "sender-123"
@@ -182,8 +197,9 @@ func TestTransfer_InsufficientBalance(t *testing.T) {
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
 	mockLedgerRepo := new(ledgerRepo.MockLedgerRepository)
+	rdb, _ := redismock.NewClientMock()
 
-	svc := NewTransactionService(db, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
+	svc := NewTransactionService(db, rdb, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
 
 	ctx := context.TODO()
 	senderUserID := "sender-123"
@@ -200,8 +216,8 @@ func TestTransfer_InsufficientBalance(t *testing.T) {
 
 	dbMock.ExpectBegin()
 
-	senderWallet := &walletModel.Wallet{ID: "wallet-sender", UserID: senderUserID, Balance: decimal.NewFromFloat(1000.0)}
-	receiverWallet := &walletModel.Wallet{ID: "wallet-receiver", UserID: "receiver-123", Balance: decimal.NewFromFloat(500.0)}
+	senderWallet := &walletModel.Wallet{ID: "wallet-sender", UserID: senderUserID, Balance: decimal.NewFromFloat(1000.0), Version: 1}
+	receiverWallet := &walletModel.Wallet{ID: "wallet-receiver", UserID: "receiver-123", Balance: decimal.NewFromFloat(500.0), Version: 2}
 
 	mockWalletRepo.On("GetByUserID", ctx, senderUserID).Return(senderWallet, nil)
 	mockWalletRepo.On("GetByUserID", ctx, "receiver-123").Return(receiverWallet, nil)
@@ -217,8 +233,9 @@ func TestGetHistory_Success(t *testing.T) {
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
 	mockLedgerRepo := new(ledgerRepo.MockLedgerRepository)
+	rdb, _ := redismock.NewClientMock()
 
-	svc := NewTransactionService(nil, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
+	svc := NewTransactionService(nil, rdb, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
 
 	ctx := context.TODO()
 	userID := "user-123"
@@ -245,8 +262,9 @@ func TestGetHistory_WalletNotFound(t *testing.T) {
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
 	mockLedgerRepo := new(ledgerRepo.MockLedgerRepository)
+	rdb, _ := redismock.NewClientMock()
 
-	svc := NewTransactionService(nil, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
+	svc := NewTransactionService(nil, rdb, mockTxRepo, mockUserRepo, mockWalletRepo, mockLedgerRepo)
 
 	ctx := context.TODO()
 	userID := "user-123"

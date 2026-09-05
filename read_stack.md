@@ -81,4 +81,10 @@ mocking, is act like a database
 
 5. swagger - API documentation
 
+6. redis
+check in redis? if exist them return from the redis
+if not then query from mysql, save to redis, return
+
+always initiate on write, when balance increase/decresae (after transfer)
+we must delete the cache key in redis, so the next balance will from mysql
 
