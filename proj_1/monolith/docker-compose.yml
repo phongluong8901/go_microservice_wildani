@@ -17,3 +17,4 @@ services:
 
 volumes:
   mysql_data:
+    name: gowallet_mysql_fixed_data

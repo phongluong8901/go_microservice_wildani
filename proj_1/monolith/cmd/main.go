@@ -5,8 +5,12 @@ import (
 
 	"github.com/bashocode/gowallet/monolith/internal/config"
 	"github.com/bashocode/gowallet/monolith/internal/database"
+	ledgerRepository "github.com/bashocode/gowallet/monolith/internal/ledger/repository"
 	"github.com/bashocode/gowallet/monolith/internal/logger"
 	"github.com/bashocode/gowallet/monolith/internal/middleware"
+	txHandler "github.com/bashocode/gowallet/monolith/internal/transaction/handler"
+	txRepository "github.com/bashocode/gowallet/monolith/internal/transaction/repository"
+	txService "github.com/bashocode/gowallet/monolith/internal/transaction/service"
 	userHandler "github.com/bashocode/gowallet/monolith/internal/user/handler"
 	userRepository "github.com/bashocode/gowallet/monolith/internal/user/repository"
 	userServer "github.com/bashocode/gowallet/monolith/internal/user/service"
@@ -35,14 +39,18 @@ func main() {
 	//1. initiate layer
 	uRepo := userRepository.NewMySqlUserRepository(db)
 	wRepo := walletRepository.NewMySQLWalletRepository(db)
+	lRepo := ledgerRepository.NewMysqlLedgerRepository(db)
+	tRepo := txRepository.NewMySQLTransactionRepository(db)
 
 	//inject db to user service for transaction
 	uSvc := userServer.NewUserService(db, uRepo, wRepo)
 	wSvc := walletService.NewWalletService(wRepo)
+	tSvc := txService.NewTransactionService(db, tRepo, uRepo, wRepo, lRepo)
 
 	// handler layer
 	uHandler := userHandler.NewUserHandler(uSvc)
 	wHandler := walletHandler.NewWalletHandler(wSvc)
+	tHandler := txHandler.NewTransactionHandler(tSvc)
 
 	//2. Setup gin router
 	// r := gin.Default()
@@ -65,6 +73,7 @@ func main() {
 		{
 			protected.GET("/users/me", uHandler.GetProfileMe)
 			protected.GET("/wallets/me", wHandler.GetMyWallet)
+			protected.POST("/transactions/transfer", tHandler.Transfer)
 
 		}
 	}
