@@ -34,6 +34,11 @@ mkdir internal/ledger/model, internal/ledger/handler, internal/ledger/repository
 
 mkdir internal/transaction/model, internal/transaction/repository, internal/transaction/service, internal/transaction/handler
 
+go get github.com/stretchr/testify
+go get github.com/stretchr/testify/mock
+
+
+
 --- run
 cd proj_1
 cd monolith

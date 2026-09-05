@@ -75,3 +75,6 @@ milion data, so slow and so long for the query and it affect api response
 file upload
 i just want to share how to save the avater/profile picture of the user
 
+4. unit test
+ensure the quality code
+mocking, is act like a database
