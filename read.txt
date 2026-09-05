@@ -37,7 +37,9 @@ mkdir internal/transaction/model, internal/transaction/repository, internal/tran
 go get github.com/stretchr/testify
 go get github.com/stretchr/testify/mock
 
-
+go install github.com/swaggo/swag/cmd/swag@latest
+go get github.com/swaggo/gin-swagger
+go get github.com/swaggo/files
 
 --- run
 cd proj_1
@@ -57,7 +59,7 @@ migrate -path db/migrations -database "mysql://gowallet_user:gowallet_password@t
 make migrateup 
 
 --- migrate version DB
-migrate create -ext sql -dir db/migrations -seq add_avatar_url_to_users
+swag init -g cmd/main.go --parseDepth 3
 
 --- docker
 cd proj_1
@@ -74,6 +76,12 @@ docker compose down
 127.0.0.1
 gowallet_user
 gowallet_password
+
+--- swagger generate docs
+cd proj_1
+cd monolith
+
+swag init -g ./cmd/main.go --parseInternal --parseDependency
 
 --- deploy
 

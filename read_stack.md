@@ -78,3 +78,7 @@ i just want to share how to save the avater/profile picture of the user
 4. unit test
 ensure the quality code
 mocking, is act like a database
+
+5. swagger - API documentation
+
+

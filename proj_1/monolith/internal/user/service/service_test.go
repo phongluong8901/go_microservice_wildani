@@ -31,8 +31,8 @@ func TestRegister_Success(t *testing.T) {
 	ctx := context.TODO()
 	req := userModel.CreateUserRequest{
 		FullName: "John Doe",
-		Email:    "john.doe@example.com",
-		Password: "secretpassword",
+		Email:    "phongluong3366@gmail.com",
+		Password: "123456",
 	}
 
 	// expect sql transaction
@@ -78,14 +78,14 @@ func TestRegister_EmailAlreadyExists(t *testing.T) {
 	ctx := context.TODO()
 	req := userModel.CreateUserRequest{
 		FullName: "John Doe",
-		Email:    "john.doe@example.com",
-		Password: "secretpassword",
+		Email:    "phongluong3366@gmail.com",
+		Password: "123456",
 	}
 
 	// email already in db
 	existingUser := &userModel.User{
 		FullName: "John Doe",
-		Email:    "john.doe@example.com",
+		Email:    "phongluong3366@gmail.com",
 	}
 	mockUserRepo.On("GetByEmail", ctx, req.Email).Return(existingUser, nil)
 

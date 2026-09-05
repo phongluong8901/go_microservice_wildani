@@ -13,9 +13,9 @@ type User struct {
 }
 
 type CreateUserRequest struct {
-	FullName string `json:"full_name" binding:"required"`      //Họ tên bắt buộc phải có
-	Email    string `json:"email" binding:"required,email"`    //Email bắt buộc và phải đúng định dạng email chuẩn.
-	Password string `json:"password" binding:"required,min=6"` //Password bắt buộc và phải có ít nhất 6 ký tự.
+	FullName string `json:"full_name" binding:"required" example="test"`             //Họ tên bắt buộc phải có
+	Email    string `json:"email" binding:"required,email" example="test@gmail.com"` //Email bắt buộc và phải đúng định dạng email chuẩn.
+	Password string `json:"password" binding:"required,min=6" example="12346"`       //Password bắt buộc và phải có ít nhất 6 ký tự.
 }
 
 type UpdateUserRequest struct {

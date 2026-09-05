@@ -21,8 +21,18 @@ func NewUserHandler(svc service.UserService) *UserHandler {
 	return &UserHandler{svc: svc}
 }
 
-// Xử lý HTTP POST Đăng ký
-func (h *UserHandler) Register(c *gin.Context) {
+// Register godoc
+// @Summary Register New User
+// @Description Create new User with default wallet
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param request body model.CreateUserRequest true "register user payload"
+// @Success 201 {object} model.User
+// @Failure 400 {object} errors.AppError
+// @Failure 409 {object} errors.AppError
+// @Router /users/register [post]
+func (h *UserHandler) Register(c *gin.Context) { // Xử lý HTTP POST Đăng ký
 	var req model.CreateUserRequest
 	//Đọc và parse dữ liệu JSON từ HTTP Body của client vào struct CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -43,6 +53,16 @@ func (h *UserHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, user)
 }
 
+// GetProfile godoc
+// @Summary		Get User Profile
+// @Description	Get user profile by user ID
+// @Tags		Users
+// @Accept		json
+// @Produce		json
+// @Param		id path string true "user id (uuid)"
+// @Success		200 {object} model.User
+// @Failure		404 {object} errors.AppError
+// @Router		/users/{id} [get]
 func (h *UserHandler) GetProfile(c *gin.Context) {
 	//Lấy giá trị tham số id từ đường dẫn URL (ví dụ /api.v1.users/123).
 	id := c.Param("id")
@@ -78,6 +98,16 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
+// Login godoc
+// @Summary      User Login
+// @Description  Authenticate user and return JWT token
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        request body model.LoginRequest true "login payload"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} errors.AppError
+// @Router       /users/login [post]
 func (h *UserHandler) Login(c *gin.Context) {
 	var req model.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
