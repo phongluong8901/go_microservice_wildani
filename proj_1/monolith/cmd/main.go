@@ -35,6 +35,11 @@ import (
 // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
 // @BasePath /api/v1
 
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer <your_token>" to authenticate.
+
 func main() {
 	//initialize the lo
 	logger.InitLogger()
