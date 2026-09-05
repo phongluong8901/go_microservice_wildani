@@ -50,7 +50,7 @@ func (s *userService) Register(ctx context.Context, req model.CreateUserRequest)
 	existing, _ := s.userRepo.GetByEmail(ctx, req.Email)
 	if existing != nil {
 		// return custom AppError
-		return nil, customError.NewAppError(http.StatusConflict, "EMAIL_ALREADY_REGISTERED", "this emial already registed")
+		return nil, customError.NewAppError(http.StatusConflict, "EMAIL_ALREADY_REGISTERED", "this email already registered.")
 	}
 
 	//hahs the password with bcrypt
