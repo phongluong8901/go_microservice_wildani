@@ -51,6 +51,8 @@ migrate -path db/migrations -database "mysql://gowallet_user:gowallet_password@t
 - chay bang makefile
 make migrateup 
 
+--- migrate version DB
+migrate create -ext sql -dir db/migrations -seq add_avatar_url_to_users
 
 --- docker
 cd proj_1

@@ -60,3 +60,18 @@ faster because no blocking other thread, onlt check version before update
 if the other update the data, version in db should be incremented, our reading version 
 not equal to db version so the update should be failed
 user should re-do transaction
+
+3. soft delete
+delete from the db, but with timestamp in the delete_at column guarantee referential integrity
+we dont want to delete the important data, transfer history, ledger if we delete user
+literally, we will face error for the foreign key
+
+DELETE FROM users;
+is deleted = true/false, deleted at nullable, if has time then it should be falg as deleted
+
+pagnition & sorting
+milion data, so slow and so long for the query and it affect api response
+
+file upload
+i just want to share how to save the avater/profile picture of the user
+
