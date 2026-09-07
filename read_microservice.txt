@@ -30,7 +30,21 @@ go work sync
 cd proj_1
 cd microservices
 
+-- auth
+cd auth-service
+go mod init github.com/bashocode/gowallet/microservices/auth-service
+
+
 --- run
+
+-- auth
+cd auth-service
+
+
+
+
+
+
 
 --- migrate
 

@@ -19,20 +19,19 @@ func NewReverseProxy(targetURL string) (*ReverseProxy, error) { // Hàm khởi t
 		return nil, err // Trả về lỗi nếu quá trình parse thất bại
 	}
 
-	// Create Go's built-in reverse proxy
-	proxy := httputil.NewSingleHostReverseProxy(url) // Khởi tạo proxy chuyển tiếp trỏ về một host đích cụ thể
+	// Create Go's built-in reverse proxy with Rewrite only
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			r.SetURL(url)
+			r.Out.Header.Set("X-Forwarded-Host", r.In.Header.Get("Host"))
 
-	// Modify request so it is forwarded with correct path and headers
-	proxy.Rewrite = func(r *httputil.ProxyRequest) { // Tùy chỉnh request trước khi forward sang service đích
-		r.SetURL(url)                                                 // Gán lại URL đích cho request chuyển tiếp
-		r.Out.Header.Set("X-Forwarded-Host", r.In.Header.Get("Host")) // Ghi nhận Host gốc của client vào header phụ
-
-		// Inject & forward Request Correlation ID for distributed logging
-		corID := r.In.Header.Get("X-Correlation-ID") // Lấy mã vết request từ client gửi lên (nếu có)
-		if corID == "" {                             // Nếu client chưa gửi mã này (thường là request đầu vào gateway)
-			corID = uuid.New().String() // Tự tạo mới một mã UUID ngẫu nhiên để theo dõi log phân tán
-		}
-		r.Out.Header.Set("X-Correlation-ID", corID) // Đính kèm Correlation ID vào request gửi tiếp tới các service sau
+			// Inject & forward Request Correlation ID for distributed logging
+			corID := r.In.Header.Get("X-Correlation-ID")
+			if corID == "" {
+				corID = uuid.New().String()
+			}
+			r.Out.Header.Set("X-Correlation-ID", corID)
+		},
 	}
 
 	return &ReverseProxy{ // Trả về con trỏ cấu trúc ReverseProxy đã cấu hình hoàn chỉnh

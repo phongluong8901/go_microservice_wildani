@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
     # === Infrastructure ===
@@ -59,11 +59,36 @@ services:
             WALLET_SERVICE_URL: http://wallet-service:8082
             TRANSACTION_SERVICE_URL: http://transaction-service:8086
             PAYMENT_SERVICE_URL: http://payment-service:8083
-        # depends_on:
-        #     auth-service:
-        #         condition: service_started
+        depends_on:
+            auth-service:
+                condition: service_started
         #     user-service:
         #         condition: service_started
+        networks:
+            - gowallet-network
+        restart: unless-stopped
+
+    auth-service:
+        build:
+            context: .
+            dockerfile: auth-service/Dockerfile
+        container_name: gowallet-auth-service-ms
+        ports:
+            - "8081:8081"
+        environment:
+            - DB_USER=gowallet_user
+            - DB_PASSWORD=gowallet_password
+            - DB_HOST=mysql
+            - DB_PORT=3306
+            - DB_NAME=gowallet
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - JWT_SECRET=super-secret-key-change-this-in-production
+            - USER_GRPC_ADDR=user-service:50052
+        depends_on:
+            - mysql
+            - redis
+            # - user-service
         networks:
             - gowallet-network
         restart: unless-stopped
