@@ -15,7 +15,9 @@ import (
 	"github.com/bashocode/gowallet/monolith/internal/config"
 	"github.com/bashocode/gowallet/monolith/internal/database"
 	"github.com/bashocode/gowallet/monolith/internal/email"
+	ledgerHandler "github.com/bashocode/gowallet/monolith/internal/ledger/handler"
 	ledgerRepository "github.com/bashocode/gowallet/monolith/internal/ledger/repository"
+	ledgerService "github.com/bashocode/gowallet/monolith/internal/ledger/service"
 	"github.com/bashocode/gowallet/monolith/internal/logger"
 	"github.com/bashocode/gowallet/monolith/internal/middleware"
 	otpRepository "github.com/bashocode/gowallet/monolith/internal/otp/repository"
@@ -57,7 +59,7 @@ func main() {
 	cfg := config.LoadConfig()
 
 	//2. Connect to database with retry
-	db, err := database.ConnectWithRetry(cfg.DBSN)
+	db, err := database.ConnectWithRetry(cfg.DBDSN)
 	if err != nil {
 		logger.Log.Error("Critical Error: Could not connect to database after retries", "error", err)
 		os.Exit(1)
@@ -68,6 +70,7 @@ func main() {
 	rdb, err := database.ConnectRedis(cfg.RedisAddr)
 	if err != nil {
 		logger.Log.Error("Critical Error: Could not connect to Redis", "error", err)
+		os.Exit(1)
 	}
 	defer rdb.Close()
 
@@ -85,11 +88,13 @@ func main() {
 	uSvc := userService.NewUserService(db, rdb, uRepo, wRepo, otpRepo, emailSender)
 	wSvc := walletService.NewWalletService(wRepo, rdb)
 	tSvc := txService.NewTransactionService(db, rdb, tRepo, uRepo, wRepo, lRepo)
+	lSvc := ledgerService.NewLedgerService(lRepo, wRepo)
 
 	// handler layer
 	uHandler := userHandler.NewUserHandler(uSvc)
 	wHandler := walletHandler.NewWalletHandler(wSvc)
 	tHandler := txHandler.NewTransactionHandler(tSvc)
+	lHandler := ledgerHandler.NewLedgerHandler(lSvc)
 
 	// start conjob
 	cronSched := scheduler.NewScheduler(db, wRepo, lRepo)
@@ -98,6 +103,7 @@ func main() {
 	//2. Setup gin router
 	// r := gin.Default()
 	r := gin.New()
+	r.Use(middleware.CorrelationID())
 	r.Use(gin.Recovery()) // recover from panic, return 500 status
 
 	//Register global error handling middlware
@@ -139,19 +145,18 @@ func main() {
 			protected.GET("/wallets/me", wHandler.GetMyWallet)
 
 			protected.POST("/transactions/transfer", tHandler.Transfer)
+			protected.POST("/transactions/topup", tHandler.TopUp)
 			protected.GET("/transactions/history", tHandler.GetHistory)
+
+			protected.GET("/ledger/mutations", lHandler.GetMutations)
+			protected.GET("/ledger/reconcile", lHandler.Reconcile)
 
 			// only admin that can access
 			adminOnly := protected.Group("/admin")
 			adminOnly.Use(middleware.RequireRole("admin")) // RBAC Protection
 			{
-				adminOnly.GET("/users", func(c *gin.Context) {
-					// Simulation: Admin can see all user
-					c.JSON(http.StatusOK, gin.H{
-						"success": true,
-						"message": "Hello Admin! You have successfully accessed the control panel data.",
-					})
-				})
+				adminOnly.GET("/users", uHandler.AdminGetUsers)
+
 			}
 		}
 	}

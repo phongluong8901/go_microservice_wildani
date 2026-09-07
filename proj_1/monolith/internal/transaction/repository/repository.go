@@ -63,7 +63,7 @@ func (r *mysqlTransactionRepository) GetByIdempotencyKey(ctx context.Context, ke
 // GetHistory thực hiện truy vấn lịch sử giao dịch của một ví
 func (r *mysqlTransactionRepository) GetHistory(ctx context.Context, walletID string, params model.PaginationParams) ([]model.Transaction, int64, error) {
 	// counting total data for pagination meta
-	countQuery := `SELECT COUNT(*) FROM transactions WHERE (sender_wallet_id) = ? OR receiver_wallet_id = ?`
+	countQuery := `SELECT COUNT(*) FROM transactions WHERE (sender_wallet_id = ? OR receiver_wallet_id = ?)`
 	var total int64
 	var err error
 
@@ -136,6 +136,10 @@ func (r *mysqlTransactionRepository) GetHistory(ctx context.Context, walletID st
 			t.SenderWalletID = &sender.String
 		}
 		txs = append(txs, t)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
 	}
 
 	return txs, total, nil

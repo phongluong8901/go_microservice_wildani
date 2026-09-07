@@ -55,7 +55,9 @@ func (r *mysqlWalletRepository) GetByUserID(ctx context.Context, userID string) 
 
 // UpdateBalanceTx cập nhật số dư ví và áp dụng cơ chế khóa lạc quan (Optimistic Locking) thông qua version để tránh xung đột đồng thời.
 func (r *mysqlWalletRepository) UpdateBalanceTx(ctx context.Context, tx *sql.Tx, walletID string, newBalance decimal.Decimal, currentVersion int) error {
-	query := `UPDATE wallets SET balance = ?, version = version + 1 WHERE id = ? AND version = ?`
+	query := `UPDATE wallets
+              SET balance = ?, version = version + 1
+              WHERE id = ? AND version = ?`
 	result, err := tx.ExecContext(ctx, query, newBalance, walletID, currentVersion)
 	if err != nil {
 		return err
@@ -68,7 +70,7 @@ func (r *mysqlWalletRepository) UpdateBalanceTx(ctx context.Context, tx *sql.Tx,
 
 	// if 0 rows affected, it means database version has changed (concurrency conflict)
 	if rowsAffected == 0 {
-		return errors.New("concurrent update detected: version mismatch")
+		return errors.New("concurrent update detected")
 	}
 
 	return nil

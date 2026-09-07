@@ -8,7 +8,7 @@ import (
 )
 
 type Config struct {
-	DBSN               string
+	DBDSN              string
 	RedisAddr          string
 	SMTPHost           string
 	SMTPPort           string
@@ -58,7 +58,7 @@ func LoadConfig() *Config {
 	}
 
 	return &Config{
-		DBSN:               dsn,
+		DBDSN:              dsn,
 		RedisAddr:          redisAddr,
 		SMTPHost:           smtpHost,
 		SMTPPort:           smtpPort,

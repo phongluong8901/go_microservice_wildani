@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"time"
@@ -44,9 +47,10 @@ type UserService interface {
 	RequestPasswordReset(ctx context.Context, email string) error
 	VerifyPasswordReset(ctx context.Context, email string, code string) (string, error)
 	ResetPassword(ctx context.Context, email string, newPassword string) error
-	GetGoogleLoginURL() string
-	HandleGoogleCallback(ctx context.Context, code string) (*model.LoginResponse, error)
+	GetGoogleLoginURL(ctx context.Context) (string, error)
+	HandleGoogleCallback(ctx context.Context, code string, state string) (*model.LoginResponse, error)
 	RefreshToken(ctx context.Context, oldTokenString string) (*model.LoginResponse, error)
+	GetAllUsers(ctx context.Context, params model.PaginationParams) ([]*model.User, *model.PaginationMeta, error)
 }
 
 // Struct ẩn chứa dependency để giao tiếp với cơ sở dữ liệu.
@@ -311,20 +315,21 @@ func (s *userService) Logout(ctx context.Context, tokenString string) error {
 }
 
 // / VerifyEmail xử lý logic nghiệp vụ xác thực email của người dùng thông qua mã OTP, đảm bảo tính toàn vẹn dữ liệu bằng Database Transaction
-func (s *userService) VerifyEmail(ctx context.Context, userID string, code string) error {
-	// 1. Get active OTP
-	otp, err := s.otpRepo.GetActiveOTP(ctx, userID, code, "email_verification")
-	if err != nil {
-		// Custom AppError: OTP not found or expired
-		return customErr.NewAppError(http.StatusBadRequest, "INVALID_OTP", "invalid or expired verification code.")
-	}
 
-	// 2. Begin transaction
+func (s *userService) VerifyEmail(ctx context.Context, userID string, code string) error {
+	// 1. Begin transaction
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return customErr.ErrInternalServer
 	}
 	defer tx.Rollback()
+
+	// 2. Get active OTP inside the transaction (acquires FOR UPDATE lock)
+	otp, err := s.otpRepo.GetActiveOTPTx(ctx, tx, userID, code, "email_verification")
+	if err != nil {
+		// Custom AppError: OTP not found or expired
+		return customErr.NewAppError(http.StatusBadRequest, "INVALID_OTP", "invalid or expired verification code.")
+	}
 
 	// 3. Mark user as verified
 	if err := s.userRepo.UpdateVerificationStatusTx(ctx, tx, userID, true); err != nil {
@@ -417,14 +422,28 @@ func (s *userService) VerifyPasswordReset(ctx context.Context, email string, cod
 		return "", customErr.NewAppError(http.StatusBadRequest, "INVALID_OTP", "invalid or expired verification code.")
 	}
 
-	// 2. Get active OTP // 2. Truy vấn lấy mã OTP hoạt động (chưa hết hạn và chưa dùng) dành riêng cho việc reset password.
-	otp, err := s.otpRepo.GetActiveOTP(ctx, user.ID, code, "password_reset")
+	// 2. Truy vấn lấy mã OTP hoạt động (chưa hết hạn và chưa dùng) dành riêng cho việc reset password.
+	// 2. Begin transaction
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", customErr.ErrInternalServer
+	}
+	defer tx.Rollback()
+
+	// 3. Get active OTP inside transaction (locks the row)
+	otp, err := s.otpRepo.GetActiveOTPTx(ctx, tx, user.ID, code, "password_reset")
 	if err != nil {
 		return "", customErr.NewAppError(http.StatusBadRequest, "INVALID_OTP", "invalid or expired verification code.")
 	}
 
-	// 3. Mark OTP as used  // 3. Đánh dấu mã OTP này đã được sử dụng (used = 1) để tránh việc tái sử dụng lại mã cũ.
-	if err := s.otpRepo.MarkAsUsed(ctx, otp.ID); err != nil {
+	// 3. Đánh dấu mã OTP này đã được sử dụng (used = 1) để tránh việc tái sử dụng lại mã cũ.
+	// 4. Mark OTP as used inside transaction
+	if err := s.otpRepo.MarkAsUsedTx(ctx, tx, otp.ID); err != nil {
+		return "", customErr.ErrInternalServer
+	}
+
+	// 5. Commit transaction
+	if err := tx.Commit(); err != nil {
 		return "", customErr.ErrInternalServer
 	}
 
@@ -476,13 +495,38 @@ func (s *userService) getOAuthConfig() *oauth2.Config {
 	}
 }
 
-func (s *userService) GetGoogleLoginURL() string {
-	oauthStateString := "random-state-string" // In production, use a secure random token stored in Redis/session to prevent CSRF
-	return s.getOAuthConfig().AuthCodeURL(oauthStateString)
+func (s *userService) GetGoogleLoginURL(ctx context.Context) (string, error) {
+	// Generate secure random state token
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	state := base64.URLEncoding.EncodeToString(b)
+
+	// Store state in Redis with 10 minute expiry
+	stateKey := fmt.Sprintf("oauth:state:%s", state)
+	err := s.rdb.Set(ctx, stateKey, "valid", 10*time.Minute).Err()
+	if err != nil {
+		return "", err
+	}
+
+	// Generate OAuth URL with random state
+	url := s.getOAuthConfig().AuthCodeURL(state)
+	return url, nil
 }
 
 // HandleGoogleCallback xử lý mã code từ Google, xác thực tài khoản, tự động đăng ký mới nếu chưa có và cấp phát JWT token nội bộ.
-func (s *userService) HandleGoogleCallback(ctx context.Context, code string) (*model.LoginResponse, error) {
+func (s *userService) HandleGoogleCallback(ctx context.Context, code string, state string) (*model.LoginResponse, error) {
+	// Validate state token exists in Redis
+	stateKey := fmt.Sprintf("oauth:state:%s", state)
+	val, err := s.rdb.Get(ctx, stateKey).Result()
+	if err != nil || val != "valid" {
+		return nil, customErr.NewAppError(http.StatusBadRequest, "INVALID_STATE", "invalid or expired OAuth state - possible CSRF attack")
+	}
+
+	// Delete state token (one-time use)
+	s.rdb.Del(ctx, stateKey)
+
 	config := s.getOAuthConfig()
 
 	// 1. Exchange the auth code for a token // 1. Thực hiện đổi mã code nhận được từ Google để lấy token.
@@ -581,8 +625,15 @@ func (s *userService) HandleGoogleCallback(ctx context.Context, code string) (*m
 	}
 
 	// Lưu Refresh Token lên Redis để quản lý trạng thái phiên đăng nhập.
-	err = s.rdb.Set(ctx, "refresh_token:"+user.ID, refreshToken, 7*24*time.Hour).Err()
-	if err != nil {
+	// Save new Refresh Token to Database (align with normal login)
+	newRT := &model.RefreshToken{
+		ID:        uuid.New().String(),
+		UserID:    user.ID,
+		Token:     refreshToken,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+		Revoked:   false,
+	}
+	if err := s.rtRepo.Create(ctx, newRT); err != nil {
 		return nil, customErr.ErrInternalServer
 	}
 
@@ -658,4 +709,37 @@ func (s *userService) RefreshToken(ctx context.Context, oldTokenString string) (
 		AccessToken:  newAccessToken,
 		RefreshToken: newRefreshTokenString,
 	}, nil
+}
+
+func (s *userService) GetAllUsers(ctx context.Context, params model.PaginationParams) ([]*model.User, *model.PaginationMeta, error) {
+	// Validate pagination parameters
+	if params.Page < 1 {
+		params.Page = 1
+	}
+	if params.Limit <= 0 {
+		params.Limit = 10
+	}
+	if params.Limit > 100 {
+		params.Limit = 100
+	}
+
+	users, total, err := s.userRepo.GetAll(ctx, params)
+	if err != nil {
+		logger.Log.Error("Failed to fetch all users", "error", err)
+		return nil, nil, customErr.ErrInternalServer
+	}
+
+	totalPage := int(math.Ceil(float64(total) / float64(params.Limit)))
+	if totalPage == 0 {
+		totalPage = 1
+	}
+
+	meta := &model.PaginationMeta{
+		Page:      params.Page,
+		Limit:     params.Limit,
+		Total:     total,
+		TotalPage: totalPage,
+	}
+
+	return users, meta, nil
 }

@@ -9,6 +9,10 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/bashocode/gowallet/monolith/internal/auth"
+	"github.com/bashocode/gowallet/monolith/internal/email"
+	"github.com/bashocode/gowallet/monolith/internal/logger"
+	otpModel "github.com/bashocode/gowallet/monolith/internal/otp/model"
+	otpRepo "github.com/bashocode/gowallet/monolith/internal/otp/repository"
 	userModel "github.com/bashocode/gowallet/monolith/internal/user/model"
 	userRepo "github.com/bashocode/gowallet/monolith/internal/user/repository"
 	walletRepo "github.com/bashocode/gowallet/monolith/internal/wallet/repository"
@@ -17,6 +21,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/crypto/bcrypt"
 )
+
+func init() {
+	logger.InitLogger()
+}
 
 func TestRegister_Success(t *testing.T) {
 	// sql mock
@@ -33,7 +41,9 @@ func TestRegister_Success(t *testing.T) {
 	// initiate mock repositories
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	req := userModel.CreateUserRequest{
@@ -50,6 +60,8 @@ func TestRegister_Success(t *testing.T) {
 	mockUserRepo.On("GetByEmail", ctx, "john.doe@example.com").Return(nil, errors.New("user not found"))
 	mockUserRepo.On("CreateTx", ctx, mock.Anything, mock.Anything).Return(nil)
 	mockWalletRepo.On("CreateTx", ctx, mock.Anything, mock.Anything).Return(nil)
+	mockOTPRepo.On("Create", ctx, mock.Anything).Return(nil)
+	mockEmailSender.On("SendEmail", mock.Anything, "john.doe@example.com", mock.Anything, mock.Anything).Return(nil)
 
 	expectedUser := &userModel.User{
 		ID:       "some-uuid",
@@ -67,9 +79,14 @@ func TestRegister_Success(t *testing.T) {
 	assert.Equal(t, req.FullName, user.FullName)
 	assert.Equal(t, req.Email, user.Email)
 
+	// give goroutine time to run
+	time.Sleep(50 * time.Millisecond)
+
 	// make sure all mock if called and expected
 	mockUserRepo.AssertExpectations(t)
 	mockWalletRepo.AssertExpectations(t)
+	mockOTPRepo.AssertExpectations(t)
+	mockEmailSender.AssertExpectations(t)
 	assert.NoError(t, dbMock.ExpectationsWereMet())
 }
 
@@ -82,7 +99,9 @@ func TestRegister_EmailAlreadyExists(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	req := userModel.CreateUserRequest{
@@ -119,7 +138,9 @@ func TestGetProfile_Success(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	userID := "user-123"
@@ -147,7 +168,9 @@ func TestGetProfile_NotFound(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	userID := "non-existent"
@@ -170,7 +193,9 @@ func TestUpdateProfile_Success(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	userID := "user-123"
@@ -208,7 +233,9 @@ func TestUpdateProfile_NotFound(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	userID := "non-existent"
@@ -234,7 +261,9 @@ func TestUpdateProfile_UpdateFailure(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	userID := "user-123"
@@ -266,7 +295,11 @@ func TestLogin_Success(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	mockRtRepo := new(userRepo.MockRefreshTokenRepository)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
+	svc.(*userService).rtRepo = mockRtRepo
 
 	ctx := context.TODO()
 	req := userModel.LoginRequest{
@@ -283,6 +316,7 @@ func TestLogin_Success(t *testing.T) {
 	}
 
 	mockUserRepo.On("GetByEmail", ctx, req.Email).Return(existingUser, nil)
+	mockRtRepo.On("Create", ctx, mock.Anything).Return(nil)
 
 	resp, err := svc.Login(ctx, req)
 
@@ -291,6 +325,7 @@ func TestLogin_Success(t *testing.T) {
 	assert.NotEmpty(t, resp.AccessToken)
 	assert.NotEmpty(t, resp.RefreshToken)
 	mockUserRepo.AssertExpectations(t)
+	mockRtRepo.AssertExpectations(t)
 }
 
 func TestLogin_InvalidCredentials_EmailNotFound(t *testing.T) {
@@ -302,7 +337,9 @@ func TestLogin_InvalidCredentials_EmailNotFound(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	req := userModel.LoginRequest{
@@ -328,7 +365,9 @@ func TestLogin_InvalidCredentials_WrongPassword(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	req := userModel.LoginRequest{
@@ -362,7 +401,9 @@ func TestUpdateAvatar_Success(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	userID := "user-123"
@@ -385,7 +426,9 @@ func TestUpdateAvatar_Failure(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	userID := "user-123"
@@ -408,7 +451,9 @@ func TestDeleteAccount_Success(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	userID := "user-123"
@@ -436,7 +481,9 @@ func TestDeleteAccount_NotFound(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	userID := "user-123"
@@ -458,7 +505,9 @@ func TestDeleteAccount_SoftDeleteFailure(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	userID := "user-123"
@@ -486,13 +535,18 @@ func TestLogout_Success(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	mockRtRepo := new(userRepo.MockRefreshTokenRepository)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
+	svc.(*userService).rtRepo = mockRtRepo
 
 	ctx := context.TODO()
 	userID := "user-123"
 	email := "test@example.com"
+	role := "user"
 
-	token, err := auth.GenerateToken(userID, email, 15*time.Minute)
+	token, err := auth.GenerateToken(userID, email, role, 15*time.Minute)
 	assert.NoError(t, err)
 
 	blacklistKey := fmt.Sprintf("blacklist:%s", token)
@@ -503,9 +557,12 @@ func TestLogout_Success(t *testing.T) {
 		return fmt.Errorf("expected set for key %s, got %v", blacklistKey, actual)
 	}).ExpectSet(blacklistKey, "logged_out", 15*time.Minute).SetVal("OK")
 
+	mockRtRepo.On("RevokeAllByUserID", ctx, userID).Return(nil)
+
 	err = svc.Logout(ctx, token)
 	assert.NoError(t, err)
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
+	mockRtRepo.AssertExpectations(t)
 }
 
 func TestLogout_InvalidToken(t *testing.T) {
@@ -517,7 +574,9 @@ func TestLogout_InvalidToken(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
 
 	ctx := context.TODO()
 	invalidToken := "invalid.token.here"
@@ -536,13 +595,18 @@ func TestLogout_RedisError(t *testing.T) {
 
 	mockUserRepo := new(userRepo.MockUserRepository)
 	mockWalletRepo := new(walletRepo.MockWalletRepository)
-	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	mockRtRepo := new(userRepo.MockRefreshTokenRepository)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
+	svc.(*userService).rtRepo = mockRtRepo
 
 	ctx := context.TODO()
 	userID := "user-123"
 	email := "test@example.com"
+	role := "user"
 
-	token, err := auth.GenerateToken(userID, email, 15*time.Minute)
+	token, err := auth.GenerateToken(userID, email, role, 15*time.Minute)
 	assert.NoError(t, err)
 
 	blacklistKey := fmt.Sprintf("blacklist:%s", token)
@@ -553,8 +617,280 @@ func TestLogout_RedisError(t *testing.T) {
 		return fmt.Errorf("expected set for key %s, got %v", blacklistKey, actual)
 	}).ExpectSet(blacklistKey, "logged_out", 15*time.Minute).SetErr(errors.New("redis failure"))
 
+	mockRtRepo.On("RevokeAllByUserID", ctx, userID).Return(nil)
+
 	err = svc.Logout(ctx, token)
 	assert.Error(t, err)
 	assert.Equal(t, "Something went wrong on the server, please try again later.", err.Error())
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
+	mockRtRepo.AssertExpectations(t)
+}
+
+func TestVerifyEmail_Success(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+
+	rdb, _ := redismock.NewClientMock()
+	defer rdb.Close()
+
+	mockUserRepo := new(userRepo.MockUserRepository)
+	mockWalletRepo := new(walletRepo.MockWalletRepository)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
+
+	ctx := context.TODO()
+	userID := "user-123"
+	code := "123456"
+
+	otpData := &otpModel.OTP{
+		ID:     "otp-uuid",
+		UserID: userID,
+		Code:   code,
+		Type:   "email_verification",
+	}
+
+	mockOTPRepo.On("GetActiveOTPTx", ctx, mock.Anything, userID, code, "email_verification").Return(otpData, nil)
+
+	dbMock.ExpectBegin()
+	mockUserRepo.On("UpdateVerificationStatusTx", ctx, mock.Anything, userID, true).Return(nil)
+	mockOTPRepo.On("MarkAsUsedTx", ctx, mock.Anything, "otp-uuid").Return(nil)
+	dbMock.ExpectCommit()
+
+	err = svc.VerifyEmail(ctx, userID, code)
+
+	assert.NoError(t, err)
+	mockUserRepo.AssertExpectations(t)
+	mockOTPRepo.AssertExpectations(t)
+	assert.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func TestVerifyEmail_InvalidOTP(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+
+	rdb, _ := redismock.NewClientMock()
+	defer rdb.Close()
+
+	mockUserRepo := new(userRepo.MockUserRepository)
+	mockWalletRepo := new(walletRepo.MockWalletRepository)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
+
+	ctx := context.TODO()
+	userID := "user-123"
+	code := "111111"
+
+	dbMock.ExpectBegin()
+	mockOTPRepo.On("GetActiveOTPTx", ctx, mock.Anything, userID, code, "email_verification").Return(nil, errors.New("otp not found"))
+	dbMock.ExpectRollback()
+
+	err = svc.VerifyEmail(ctx, userID, code)
+
+	assert.Error(t, err)
+	assert.Equal(t, "invalid or expired verification code.", err.Error())
+	mockOTPRepo.AssertExpectations(t)
+	assert.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func TestRequestPasswordReset_Success(t *testing.T) {
+	db, _, _ := sqlmock.New()
+	defer db.Close()
+
+	rdb, _ := redismock.NewClientMock()
+	defer rdb.Close()
+
+	mockUserRepo := new(userRepo.MockUserRepository)
+	mockWalletRepo := new(walletRepo.MockWalletRepository)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
+
+	ctx := context.TODO()
+	emailAddr := "test@example.com"
+	u := &userModel.User{
+		ID:    "user-uuid",
+		Email: emailAddr,
+	}
+
+	mockUserRepo.On("GetByEmailNoErrorNotFound", ctx, emailAddr).Return(u, nil)
+	mockOTPRepo.On("Create", ctx, mock.Anything).Return(nil)
+	mockEmailSender.On("SendEmail", mock.Anything, emailAddr, mock.Anything, mock.Anything).Return(nil)
+
+	err := svc.RequestPasswordReset(ctx, emailAddr)
+	assert.NoError(t, err)
+	time.Sleep(50 * time.Millisecond) // Wait for email goroutine
+	mockUserRepo.AssertExpectations(t)
+	mockOTPRepo.AssertExpectations(t)
+}
+
+func TestRequestPasswordReset_UserNotFound(t *testing.T) {
+	db, _, _ := sqlmock.New()
+	defer db.Close()
+
+	rdb, _ := redismock.NewClientMock()
+	defer rdb.Close()
+
+	mockUserRepo := new(userRepo.MockUserRepository)
+	mockWalletRepo := new(walletRepo.MockWalletRepository)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
+
+	ctx := context.TODO()
+	emailAddr := "nonexistent@example.com"
+
+	mockUserRepo.On("GetByEmailNoErrorNotFound", ctx, emailAddr).Return(nil, nil)
+
+	err := svc.RequestPasswordReset(ctx, emailAddr)
+	assert.NoError(t, err) // Should return nil (no-op) to prevent email enumeration
+	mockUserRepo.AssertExpectations(t)
+}
+
+func TestVerifyPasswordReset_Success(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+
+	rdb, _ := redismock.NewClientMock()
+	defer rdb.Close()
+
+	mockUserRepo := new(userRepo.MockUserRepository)
+	mockWalletRepo := new(walletRepo.MockWalletRepository)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
+
+	ctx := context.TODO()
+	emailAddr := "test@example.com"
+	code := "123456"
+	u := &userModel.User{
+		ID:    "user-uuid",
+		Email: emailAddr,
+	}
+	otpData := &otpModel.OTP{
+		ID:     "otp-uuid",
+		UserID: "user-uuid",
+		Code:   code,
+		Type:   "password_reset",
+	}
+
+	mockUserRepo.On("GetByEmailNoErrorNotFound", ctx, emailAddr).Return(u, nil)
+	dbMock.ExpectBegin()
+	mockOTPRepo.On("GetActiveOTPTx", ctx, mock.Anything, "user-uuid", code, "password_reset").Return(otpData, nil)
+	mockOTPRepo.On("MarkAsUsedTx", ctx, mock.Anything, "otp-uuid").Return(nil)
+	dbMock.ExpectCommit()
+
+	userID, err := svc.VerifyPasswordReset(ctx, emailAddr, code)
+	assert.NoError(t, err)
+	assert.Equal(t, "user-uuid", userID)
+	mockUserRepo.AssertExpectations(t)
+	mockOTPRepo.AssertExpectations(t)
+	assert.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func TestResetPassword_Success(t *testing.T) {
+	db, _, _ := sqlmock.New()
+	defer db.Close()
+
+	rdb, _ := redismock.NewClientMock()
+	defer rdb.Close()
+
+	mockUserRepo := new(userRepo.MockUserRepository)
+	mockWalletRepo := new(walletRepo.MockWalletRepository)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	mockRtRepo := new(userRepo.MockRefreshTokenRepository)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
+	svc.(*userService).rtRepo = mockRtRepo
+
+	ctx := context.TODO()
+	userID := "user-uuid"
+	newPassword := "newsecurepass"
+
+	mockUserRepo.On("UpdatePassword", ctx, userID, mock.Anything).Return(nil)
+	mockRtRepo.On("RevokeAllByUserID", ctx, userID).Return(nil)
+
+	err := svc.ResetPassword(ctx, userID, newPassword)
+	assert.NoError(t, err)
+	mockUserRepo.AssertExpectations(t)
+	mockRtRepo.AssertExpectations(t)
+}
+
+func TestGetAllUsers_Success(t *testing.T) {
+	db, _, _ := sqlmock.New()
+	defer db.Close()
+
+	rdb, _ := redismock.NewClientMock()
+	defer rdb.Close()
+
+	mockUserRepo := new(userRepo.MockUserRepository)
+	mockWalletRepo := new(walletRepo.MockWalletRepository)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
+
+	ctx := context.TODO()
+	users := []*userModel.User{
+		{ID: "user-1", FullName: "User One", Email: "one@example.com"},
+		{ID: "user-2", FullName: "User Two", Email: "two@example.com"},
+	}
+
+	params := userModel.PaginationParams{
+		Page:  1,
+		Limit: 10,
+		Sort:  "created_at",
+		Order: "desc",
+	}
+
+	mockUserRepo.On("GetAll", ctx, params).Return(users, int64(2), nil)
+
+	result, meta, err := svc.GetAllUsers(ctx, params)
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+	assert.Equal(t, "user-1", result[0].ID)
+	assert.Equal(t, 1, meta.Page)
+	assert.Equal(t, 10, meta.Limit)
+	assert.Equal(t, int64(2), meta.Total)
+	assert.Equal(t, 1, meta.TotalPage)
+	mockUserRepo.AssertExpectations(t)
+}
+
+func TestGetAllUsers_Failure(t *testing.T) {
+	db, _, _ := sqlmock.New()
+	defer db.Close()
+
+	rdb, _ := redismock.NewClientMock()
+	defer rdb.Close()
+
+	mockUserRepo := new(userRepo.MockUserRepository)
+	mockWalletRepo := new(walletRepo.MockWalletRepository)
+	mockOTPRepo := new(otpRepo.MockOTPRepository)
+	mockEmailSender := new(email.MockEmailSender)
+	svc := NewUserService(db, rdb, mockUserRepo, mockWalletRepo, mockOTPRepo, mockEmailSender)
+
+	ctx := context.TODO()
+	params := userModel.PaginationParams{
+		Page:  1,
+		Limit: 10,
+		Sort:  "created_at",
+		Order: "desc",
+	}
+
+	mockUserRepo.On("GetAll", ctx, params).Return(nil, int64(0), errors.New("db error"))
+
+	result, meta, err := svc.GetAllUsers(ctx, params)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Nil(t, meta)
+	mockUserRepo.AssertExpectations(t)
 }

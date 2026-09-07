@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	customError "github.com/bashocode/gowallet/monolith/internal/errors"
+	customErr "github.com/bashocode/gowallet/monolith/internal/errors"
 	"github.com/bashocode/gowallet/monolith/internal/logger"
 	"github.com/bashocode/gowallet/monolith/internal/user/model"
 	"github.com/gin-gonic/gin"
@@ -73,17 +73,71 @@ func (m *MockUserService) Logout(ctx context.Context, tokenString string) error 
 	return args.Error(0)
 }
 
+func (m *MockUserService) VerifyEmail(ctx context.Context, userID string, code string) error {
+	args := m.Called(ctx, userID, code)
+	return args.Error(0)
+}
+
+func (m *MockUserService) GenerateAndSendOTP(ctx context.Context, userID string, email string, otpType string) error {
+	args := m.Called(ctx, userID, email, otpType)
+	return args.Error(0)
+}
+
+func (m *MockUserService) RequestPasswordReset(ctx context.Context, email string) error {
+	args := m.Called(ctx, email)
+	return args.Error(0)
+}
+
+func (m *MockUserService) VerifyPasswordReset(ctx context.Context, email string, code string) (string, error) {
+	args := m.Called(ctx, email, code)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockUserService) ResetPassword(ctx context.Context, email string, newPassword string) error {
+	args := m.Called(ctx, email, newPassword)
+	return args.Error(0)
+}
+
+func (m *MockUserService) GetGoogleLoginURL(ctx context.Context) (string, error) {
+	args := m.Called(ctx)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockUserService) HandleGoogleCallback(ctx context.Context, code string, state string) (*model.LoginResponse, error) {
+	args := m.Called(ctx, code, state)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.LoginResponse), args.Error(1)
+}
+
+func (m *MockUserService) RefreshToken(ctx context.Context, oldTokenString string) (*model.LoginResponse, error) {
+	args := m.Called(ctx, oldTokenString)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.LoginResponse), args.Error(1)
+}
+
+func (m *MockUserService) GetAllUsers(ctx context.Context, params model.PaginationParams) ([]*model.User, *model.PaginationMeta, error) {
+	args := m.Called(ctx, params)
+	if args.Get(0) == nil {
+		return nil, nil, args.Error(2)
+	}
+	return args.Get(0).([]*model.User), args.Get(1).(*model.PaginationMeta), args.Error(2)
+}
+
 // ErrorHandler is copied from middleware for unit tests simplicity in this package
 func testErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 		if len(c.Errors) > 0 {
 			err := c.Errors.Last().Err
-			if appErr, ok := err.(*customError.AppError); ok {
+			if appErr, ok := err.(*customErr.AppError); ok {
 				c.JSON(appErr.StatusCode, gin.H{"success": false, "error": appErr})
 				return
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": customError.ErrInternalServer})
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": customErr.ErrInternalServer})
 		}
 	}
 }
@@ -160,7 +214,7 @@ func TestRegister(t *testing.T) {
 			Password: "password123",
 		}
 
-		mockSvc.On("Register", mock.Anything, reqPayload).Return(nil, customError.NewAppError(http.StatusConflict, "EMAIL_EXISTS", "email exists"))
+		mockSvc.On("Register", mock.Anything, reqPayload).Return(nil, customErr.NewAppError(http.StatusConflict, "EMAIL_EXISTS", "email exists"))
 
 		body, _ := json.Marshal(reqPayload)
 		req, _ := http.NewRequest(http.MethodPost, "/register", bytes.NewBuffer(body))
@@ -226,7 +280,7 @@ func TestLogin(t *testing.T) {
 			Password: "wrongpassword",
 		}
 
-		mockSvc.On("Login", mock.Anything, reqPayload).Return(nil, customError.NewAppError(http.StatusUnauthorized, "INVALID_CREDENTIALS", "invalid credentials"))
+		mockSvc.On("Login", mock.Anything, reqPayload).Return(nil, customErr.NewAppError(http.StatusUnauthorized, "INVALID_CREDENTIALS", "invalid credentials"))
 
 		body, _ := json.Marshal(reqPayload)
 		req, _ := http.NewRequest(http.MethodPost, "/login", bytes.NewBuffer(body))
@@ -322,6 +376,123 @@ func TestLogout(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		mockSvc.AssertExpectations(t)
+	})
+}
+
+func TestForgotPassword(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("success", func(t *testing.T) {
+		mockSvc := new(MockUserService)
+		h := NewUserHandler(mockSvc)
+
+		r := gin.New()
+		r.Use(testErrorHandler())
+		r.POST("/forgot-password", h.ForgotPassword)
+
+		reqPayload := PasswordResetRequest{
+			Email: "test@example.com",
+		}
+		mockSvc.On("RequestPasswordReset", mock.Anything, "test@example.com").Return(nil)
+
+		body, _ := json.Marshal(reqPayload)
+		req, _ := http.NewRequest(http.MethodPost, "/forgot-password", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.True(t, resp["success"].(bool))
+		assert.Contains(t, resp["message"], "If the email is registered")
+		mockSvc.AssertExpectations(t)
+	})
+
+	t.Run("invalid payload", func(t *testing.T) {
+		mockSvc := new(MockUserService)
+		h := NewUserHandler(mockSvc)
+
+		r := gin.New()
+		r.Use(testErrorHandler())
+		r.POST("/forgot-password", h.ForgotPassword)
+
+		reqPayload := PasswordResetRequest{
+			Email: "invalid-email",
+		}
+
+		body, _ := json.Marshal(reqPayload)
+		req, _ := http.NewRequest(http.MethodPost, "/forgot-password", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		mockSvc.AssertExpectations(t)
+	})
+}
+
+func TestVerifyPasswordReset(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("success", func(t *testing.T) {
+		mockSvc := new(MockUserService)
+		h := NewUserHandler(mockSvc)
+
+		r := gin.New()
+		r.Use(testErrorHandler())
+		r.POST("/verify-password-reset", h.VerifyPasswordReset)
+
+		reqPayload := VerifyPasswordResetRequest{
+			Email:              "test@example.com",
+			Code:               "123456",
+			NewPassword:        "newpassword123",
+			NewConfirmPassword: "newpassword123",
+		}
+		mockSvc.On("VerifyPasswordReset", mock.Anything, "test@example.com", "123456").Return("user-uuid", nil)
+		mockSvc.On("ResetPassword", mock.Anything, "user-uuid", "newpassword123").Return(nil)
+
+		body, _ := json.Marshal(reqPayload)
+		req, _ := http.NewRequest(http.MethodPost, "/verify-password-reset", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.True(t, resp["success"].(bool))
+		assert.Contains(t, resp["message"], "Password reset successfully")
+		mockSvc.AssertExpectations(t)
+	})
+
+	t.Run("invalid payload - password mismatch", func(t *testing.T) {
+		mockSvc := new(MockUserService)
+		h := NewUserHandler(mockSvc)
+
+		r := gin.New()
+		r.Use(testErrorHandler())
+		r.POST("/verify-password-reset", h.VerifyPasswordReset)
+
+		reqPayload := VerifyPasswordResetRequest{
+			Email:              "test@example.com",
+			Code:               "123456",
+			NewPassword:        "newpassword123",
+			NewConfirmPassword: "differentpassword",
+		}
+
+		body, _ := json.Marshal(reqPayload)
+		req, _ := http.NewRequest(http.MethodPost, "/verify-password-reset", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 		mockSvc.AssertExpectations(t)
 	})
 }
