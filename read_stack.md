@@ -113,3 +113,19 @@ Phòng chống rò rỉ tài nguyên và treo tiến trình (Goroutine Leak / Ha
 
 Bảo vệ luồng nghiệp vụ chính (Fault Isolation): Sự cố phát sinh từ dịch vụ bên thứ ba hoặc máy chủ email (như lỗi mạng SMTP) được cô lập hoàn toàn, không làm gián đoạn hay trả về lỗi thất bại cho các nghiệp vụ cốt lõi quan trọng của người dùng (như đăng ký tài khoản hay yêu cầu đổi mật khẩu).
 
+10. concept Refresh Token Rotation (RTR) & resuse Detection
+Refresh Token Rotation (RTR) và Reuse Detection là cơ chế bảo mật nâng cao nhằm bảo vệ phiên đăng nhập của người dùng khỏi việc bị kẻ gian đánh cắp và lợi dụng (Token Hijacking).
+
+1. Refresh Token Rotation (Xoay vòng Refresh Token)
+Trong mô hình xác thực thông thường, mỗi khi Refresh Token được dùng để cấp lại Access Token mới, hệ thống sẽ trả về cùng một Refresh Token cũ cho đến khi nó hết hạn (thường kéo dài nhiều ngày hoặc vài tuần).
+
+RTR hoạt động ngược lại: Mỗi khi client dùng một Refresh Token cũ để xin cấp Access Token mới, server sẽ thu hồi (revoke) token cũ đó ngay lập tức và phát hành một Refresh Token hoàn toàn mới.
+
+Lợi ích: Giảm thiểu khoảng thời gian tồn tại của một Refresh Token. Kẻ tấn công nếu có lỡ lấy được một Refresh Token cũ, chúng chỉ dùng được một lần duy nhất.
+
+2. Reuse Detection (Phát hiện tái sử dụng token độc hại)
+Khi áp dụng RTR, server cần lưu trạng thái hoặc chuỗi liên kết (family) của các token.
+
+Cách hoạt động: Server ghi nhận token nào đã bị sử dụng rồi. Nếu một ngày nào đó, một Refresh Token đã bị đánh dấu là "đã dùng/đã bị thay thế" mà lại xuất hiện thêm một yêu cầu đổi token lần nữa (thường xảy ra do kẻ tấn công đang cố dùng token cũ đã đánh cắp, trong khi người dùng thực sự vẫn đang dùng token mới), hệ thống sẽ lập tức nhận diện đây là hành vi tấn công chiếm đoạt phiên (Token Reuse Attack).
+
+Hành động phản ứng: Khi phát hiện tái sử dụng, hệ thống sẽ lập tức vô hiệu hóa toàn bộ chuỗi token đó, đồng thời thu hồi toàn bộ phiên đăng nhập của user trên mọi thiết bị (xóa sạch các key tương ứng trên Redis) và buộc người dùng phải đăng nhập lại từ đầu.
