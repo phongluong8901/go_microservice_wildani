@@ -7,7 +7,6 @@ import (
 
 	"github.com/bashocode/gowallet/monolith/internal/auth"
 	customErr "github.com/bashocode/gowallet/monolith/internal/errors"
-	customError "github.com/bashocode/gowallet/monolith/internal/errors"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 )
@@ -44,7 +43,7 @@ func AuthMiddleware(rdb *redis.Client) gin.HandlerFunc {
 		exists, err := rdb.Exists(c.Request.Context(), blacklistKey).Result()
 		// Nếu không có lỗi và tồn tại (exists > 0), tức là token đã bị thu hồi.
 		if err == nil && exists > 0 {
-			c.Error(customError.NewAppError(
+			c.Error(customErr.NewAppError(
 				http.StatusUnauthorized,
 				"TOKEN_REVOKED",
 				"Login session has ended. Please login again.",

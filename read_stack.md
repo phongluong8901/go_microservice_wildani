@@ -114,6 +114,11 @@ Phòng chống rò rỉ tài nguyên và treo tiến trình (Goroutine Leak / Ha
 Bảo vệ luồng nghiệp vụ chính (Fault Isolation): Sự cố phát sinh từ dịch vụ bên thứ ba hoặc máy chủ email (như lỗi mạng SMTP) được cô lập hoàn toàn, không làm gián đoạn hay trả về lỗi thất bại cho các nghiệp vụ cốt lõi quan trọng của người dùng (như đăng ký tài khoản hay yêu cầu đổi mật khẩu).
 
 10. concept Refresh Token Rotation (RTR) & resuse Detection
+if RT stolen by hacker, hacker can generate new refresh token  forever
+RTR, RT-A used to generate new refresh token RT-B, we need to revoke the RT-A
+Reuse detection, RT-A that  has been revoked, if used again, system should detectthat this RT-A was stolen, delete all refresh token from the user so the real user, and hacker automatically logged out
+
+
 Refresh Token Rotation (RTR) và Reuse Detection là cơ chế bảo mật nâng cao nhằm bảo vệ phiên đăng nhập của người dùng khỏi việc bị kẻ gian đánh cắp và lợi dụng (Token Hijacking).
 
 1. Refresh Token Rotation (Xoay vòng Refresh Token)

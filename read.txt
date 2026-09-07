@@ -71,6 +71,7 @@ migrate create -ext sql -dir db/migrations -seq add_avatar_url_to_users
 migrate create -ext sql -dir db/migrations -seq create_otp_table
 migrate create -ext sql -dir db/migrations -seq add_is_verified
 migrate create -ext sql -dir db/migrations -seq add_oauth_fields
+migrate create -ext sql -dir db/migrations -seq refresh_tokens_table
 
 --- mail hog
 http://localhost:8025/

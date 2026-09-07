@@ -134,6 +134,8 @@ func main() {
 			protected.POST("/users/logout", uHandler.Logout)
 			protected.POST("/users/verify-email", uHandler.VerifyEmail)
 
+			protected.POST("/auth/refresh", uHandler.RefreshToken)
+
 			protected.GET("/wallets/me", wHandler.GetMyWallet)
 
 			protected.POST("/transactions/transfer", tHandler.Transfer)
