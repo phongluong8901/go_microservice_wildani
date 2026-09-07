@@ -47,9 +47,19 @@ cd auth-service
 
 
 --- migrate
+-- auth-service
+-
+migrate create -ext sql -dir auth-service/db/migrations -seq create_refresh_token
+
+-
+make migrateup-auth-service
+
+-- user-service
 
 --- docker
 docker compose up --build -d
+
+docker compose up -d
 docker compose down
 
 --- deploy
