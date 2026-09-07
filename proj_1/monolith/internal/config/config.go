@@ -8,11 +8,14 @@ import (
 )
 
 type Config struct {
-	DBSN      string
-	RedisAddr string
-	SMTPHost  string
-	SMTPPort  string
-	SMTPFrom  string
+	DBSN               string
+	RedisAddr          string
+	SMTPHost           string
+	SMTPPort           string
+	SMTPFrom           string
+	GoogleClientID     string
+	GoogleClientSecret string
+	GoogleRedirectURL  string
 }
 
 func LoadConfig() *Config {
@@ -41,12 +44,27 @@ func LoadConfig() *Config {
 	if smtpFrom == "" {
 		smtpFrom = "no-reply@gowallet.com"
 	}
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	if googleClientID == "" {
+		googleClientID = ""
+	}
+	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	if googleClientSecret == "" {
+		googleClientSecret = ""
+	}
+	googleRedirectURL := os.Getenv("GOOGLE_REDIRECT_URL")
+	if googleRedirectURL == "" {
+		googleRedirectURL = "http://localhost:8080/api/v1/auth/google/callback"
+	}
 
 	return &Config{
-		DBSN:      dsn,
-		RedisAddr: redisAddr,
-		SMTPHost:  smtpHost,
-		SMTPPort:  smtpPort,
-		SMTPFrom:  smtpFrom,
+		DBSN:               dsn,
+		RedisAddr:          redisAddr,
+		SMTPHost:           smtpHost,
+		SMTPPort:           smtpPort,
+		SMTPFrom:           smtpFrom,
+		GoogleClientID:     googleClientID,
+		GoogleClientSecret: googleClientSecret,
+		GoogleRedirectURL:  googleRedirectURL,
 	}
 }

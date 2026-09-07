@@ -45,6 +45,9 @@ go get github.com/redis/go-redis/v9
 
 go get github.com/robfig/cron/v3
 
+go get golang.org/x/oauth2
+go get golang.org/x/oauth2/google
+
 --- run
 cd proj_1
 cd monolith
@@ -67,6 +70,7 @@ make migrateup
 migrate create -ext sql -dir db/migrations -seq add_avatar_url_to_users
 migrate create -ext sql -dir db/migrations -seq create_otp_table
 migrate create -ext sql -dir db/migrations -seq add_is_verified
+migrate create -ext sql -dir db/migrations -seq add_oauth_fields
 
 --- mail hog
 http://localhost:8025/
@@ -98,6 +102,9 @@ http://localhost:8080/swagger/index.html#/
 
 --- unit test
 go test ./...
+
+--- google oauth2.0
+http://localhost:8080/api/v1/auth/google/login
 
 --- deploy
 

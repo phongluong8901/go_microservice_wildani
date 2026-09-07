@@ -22,6 +22,7 @@ type UserRepository interface {
 	UpdateVerificationStatus(ctx context.Context, id string, verified bool) error
 	UpdateVerificationStatusTx(ctx context.Context, tx *sql.Tx, id string, verified bool) error
 	UpdatePassword(ctx context.Context, id string, passwordHash string) error
+	GetByOAuth(ctx context.Context, provider, oauthID string) (*model.User, error)
 }
 
 // Struct chứa kết nối cơ sở dữ liệu db *sql.DB
@@ -46,11 +47,17 @@ func (r *mysqlUserRepository) Create(ctx context.Context, u *model.User) error {
 // Lấy User theo ID
 func (r *mysqlUserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
 	//Chọn dữ liệu từ bảng users chỉ lấy những dòng chưa bị xóa (deleted_at IS NULL)
-	query := `SELECT id, full_name, email, password_hash, avatar_url, is_verified, created_at, updated_at, deleted_at FROM users WHERE id = ? AND deleted_at IS NULL`
+	query := `SELECT id, full_name, email, password_hash, oauth_provider, 
+		oauth_id, avatar_url, is_verified, created_at, updated_at, 
+		deleted_at FROM users WHERE id = ? AND deleted_at IS NULL`
 	u := &model.User{}
 
 	//Ánh xạ các cột trong kết quả trả về của database vào các trường tương ứng của struct u
-	err := r.db.QueryRowContext(ctx, query, id).Scan(&u.ID, &u.FullName, &u.Email, &u.PasswordHash, &u.AvatarURL, &u.IsVerified, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&u.ID, &u.FullName, &u.Email, &u.PasswordHash,
+		&u.OAuthProvider, &u.OAuthID, &u.AvatarURL, &u.IsVerified,
+		&u.CreatedAt, &u.UpdatedAt, &u.DeletedAt,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("user not found")
@@ -89,8 +96,8 @@ func (r *mysqlUserRepository) Update(ctx context.Context, u *model.User) error {
 
 // CreateTx thực hiện câu lệnh SQL thêm mới một người dùng vào bảng users bên trong một transaction có sẵn (tx).
 func (r *mysqlUserRepository) CreateTx(ctx context.Context, tx *sql.Tx, u *model.User) error {
-	query := `INSERT INTO users (id, full_name, email, password_hash) VALUES (?, ?, ?, ?)`
-	_, err := tx.ExecContext(ctx, query, u.ID, u.FullName, u.Email, u.PasswordHash)
+	query := `INSERT INTO users (id, full_name, email, password_hash, oauth_provider, oauth_id, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	_, err := tx.ExecContext(ctx, query, u.ID, u.FullName, u.Email, u.PasswordHash, u.OAuthProvider, u.OAuthID, u.IsVerified)
 	return err
 }
 
@@ -144,4 +151,23 @@ func (r *mysqlUserRepository) UpdatePassword(ctx context.Context, id string, pas
 	query := `UPDATE users SET password_hash = ? WHERE id = ? AND deleted_at IS NULL`
 	_, err := r.db.ExecContext(ctx, query, passwordHash, id)
 	return err
+}
+
+// GetByOAuth tìm kiếm và trả về thông tin người dùng từ cơ sở dữ liệu dựa vào nhà cung cấp OAuth và OAuth ID.
+func (r *mysqlUserRepository) GetByOAuth(ctx context.Context, provider, oauthID string) (*model.User, error) {
+	// Định nghĩa câu lệnh SQL lấy thông tin user khớp với provider và oauth_id, đồng thời bỏ qua các user đã bị xóa mềm.
+	query := `SELECT id, full_name, email, password_hash, oauth_provider, oauth_id, avatar_url, is_verified, created_at, updated_at, deleted_at FROM users WHERE oauth_provider = ? AND oauth_id = ? AND deleted_at IS NULL`
+	u := &model.User{}
+
+	// Thực thi câu lệnh truy vấn và ánh xạ (scan) các cột dữ liệu nhận được vào struct `u`.
+	err := r.db.QueryRowContext(ctx, query, provider, oauthID).Scan(
+		&u.ID, &u.FullName, &u.Email, &u.PasswordHash, &u.OAuthProvider, &u.OAuthID, &u.AvatarURL, &u.IsVerified, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("user not found")
+		}
+		return nil, err
+	}
+	return u, nil
 }
