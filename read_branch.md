@@ -111,3 +111,9 @@ git checkout -b p18_microservice_apigateway
 git add .
 git commit -m "change: first"
 git push -u origin p18_microservice_apigateway
+
+# --- -
+git checkout -b p19_auth_service
+git add .
+git commit -m "change: first"
+git push -u origin p19_auth_service
