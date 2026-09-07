@@ -14,12 +14,14 @@ type UserRepository interface {
 	Create(ctx context.Context, u *model.User) error
 	GetByID(ctx context.Context, id string) (*model.User, error)
 	GetByEmail(ctx context.Context, email string) (*model.User, error)
+	GetByEmailNoErrorNotFound(ctx context.Context, email string) (*model.User, error)
 	Update(ctx context.Context, u *model.User) error
 	CreateTx(ctx context.Context, tx *sql.Tx, u *model.User) error
 	UpdateAvatar(ctx context.Context, id string, path string) error
 	SoftDelete(ctx context.Context, id string) error
 	UpdateVerificationStatus(ctx context.Context, id string, verified bool) error
 	UpdateVerificationStatusTx(ctx context.Context, tx *sql.Tx, id string, verified bool) error
+	UpdatePassword(ctx context.Context, id string, passwordHash string) error
 }
 
 // Struct chứa kết nối cơ sở dữ liệu db *sql.DB
@@ -117,5 +119,29 @@ func (r *mysqlUserRepository) UpdateVerificationStatus(ctx context.Context, id s
 func (r *mysqlUserRepository) UpdateVerificationStatusTx(ctx context.Context, tx *sql.Tx, id string, verified bool) error {
 	query := `UPDATE users SET is_verified = ? WHERE id = ? AND deleted_at IS NULL`
 	_, err := tx.ExecContext(ctx, query, verified, id)
+	return err
+}
+
+// GetByEmailNoErrorNotFound truy vấn thông tin người dùng theo địa chỉ email, trả về nil thay vì lỗi sql.ErrNoRows nếu không tìm thấy bản ghi.
+func (r *mysqlUserRepository) GetByEmailNoErrorNotFound(ctx context.Context, email string) (*model.User, error) {
+	query := `SELECT id, full_name, email, password_hash, avatar_url, is_verified, created_at, updated_at, deleted_at FROM users WHERE email = ? AND deleted_at IS NULL`
+	u := &model.User{}
+
+	err := r.db.QueryRowContext(ctx, query, email).Scan(&u.ID, &u.FullName, &u.Email, &u.PasswordHash, &u.AvatarURL, &u.IsVerified, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return u, nil
+}
+
+// UpdatePassword cập nhật mật khẩu mới (đã được mã hóa dạng hash) cho người dùng dựa vào ID và đảm bảo tài khoản chưa bị xóa mềm.
+func (r *mysqlUserRepository) UpdatePassword(ctx context.Context, id string, passwordHash string) error {
+	query := `UPDATE users SET password_hash = ? WHERE id = ? AND deleted_at IS NULL`
+	_, err := r.db.ExecContext(ctx, query, passwordHash, id)
 	return err
 }

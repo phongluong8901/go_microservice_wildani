@@ -96,3 +96,20 @@ API max 60 req/ minutes 429 too manu reqeust if exceeded
 save the key rate_limit ip_address:minutes
 
 jwt, token is blacklisted, 410 gone
+
+8. security
+bad approach
+response like emaul not found
+
+good approach
+respponse such as if the email is registered, reset code has been sent
+
+9. tac dung go routine trong gui mail otp
+Tối ưu hiệu năng (Non-blocking response): Khách hàng không phải chờ đợi quá trình kết nối và truyền dữ liệu qua giao thức SMTP (vốn có độ trễ cao từ vài trăm mili-giây đến vài giây). Giúp API phản hồi nhanh chóng (giảm thiểu HTTP latency).
+
+Cô lập vòng đời nhờ Context độc lập (bgCtx): Khi HTTP request của client kết thúc hoặc bị hủy, context gốc sẽ tự động bị hủy (cancel). Nếu dùng trực tiếp context gốc, tiến trình gửi email đang chạy ngầm sẽ bị ngắt đột ngột giữa chừng. Việc khởi tạo context.WithTimeout(context.Background(), 10*time.Second) giúp tiến trình nền có một không gian thời gian độc lập để hoàn thành việc truyền tải dữ liệu.
+
+Phòng chống rò rỉ tài nguyên và treo tiến trình (Goroutine Leak / Hanging): Giới hạn thời gian cứng 10 giây ngăn chặn tình trạng goroutine bị kẹt vĩnh viễn trong trạng thái chờ (waiting) nếu máy chủ SMTP gặp sự cố mất kết nối hoặc phản hồi cực kỳ chậm.
+
+Bảo vệ luồng nghiệp vụ chính (Fault Isolation): Sự cố phát sinh từ dịch vụ bên thứ ba hoặc máy chủ email (như lỗi mạng SMTP) được cô lập hoàn toàn, không làm gián đoạn hay trả về lỗi thất bại cho các nghiệp vụ cốt lõi quan trọng của người dùng (như đăng ký tài khoản hay yêu cầu đổi mật khẩu).
+
