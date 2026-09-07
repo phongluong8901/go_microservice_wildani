@@ -66,6 +66,7 @@ func AuthMiddleware(rdb *redis.Client) gin.HandlerFunc {
 		// Lưu các thông tin giải mã được từ token (UserID, Email, TokenString) vào context của Gin
 		c.Set("user_id", claims.UserID)
 		c.Set("email", claims.Email)
+		c.Set("role", claims.Role)
 		c.Set("token_string", tokenString) // store for logout needs
 
 		c.Next()

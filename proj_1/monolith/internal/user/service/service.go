@@ -225,14 +225,14 @@ func (s *userService) Login(ctx context.Context, req model.LoginRequest) (*model
 	}
 
 	// generate access token 15 minutes
-	accessToken, err := auth.GenerateToken(user.ID, user.Email, 15*time.Minute)
+	accessToken, err := auth.GenerateToken(user.ID, user.Email, user.Role, 15*time.Minute)
 	if err != nil {
 		return nil, customErr.ErrInternalServer
 	}
 
 	// generate refresh token 7 days
 	// / Gọi hàm sinh token định danh cho người dùng với thời hạn sống kéo dài 7 ngày dùng làm Refresh Token.
-	refreshToken, err := auth.GenerateToken(user.ID, user.Email, 7*24*time.Hour)
+	refreshToken, err := auth.GenerateToken(user.ID, user.Email, user.Role, 7*24*time.Hour)
 	if err != nil {
 		return nil, customErr.ErrInternalServer
 	}
@@ -569,13 +569,13 @@ func (s *userService) HandleGoogleCallback(ctx context.Context, code string) (*m
 
 	// 4. Generate JWT token
 	// Tạo JWT Access Token nội bộ có thời hạn ngắn (15 phút) dùng cho các request được bảo vệ.
-	accessToken, err := auth.GenerateToken(user.ID, user.Email, 15*time.Minute)
+	accessToken, err := auth.GenerateToken(user.ID, user.Email, user.Role, 15*time.Minute)
 	if err != nil {
 		return nil, customErr.ErrInternalServer
 	}
 
 	// Tạo JWT Refresh Token nội bộ có thời hạn dài (7 ngày).
-	refreshToken, err := auth.GenerateToken(user.ID, user.Email, 7*24*time.Hour)
+	refreshToken, err := auth.GenerateToken(user.ID, user.Email, user.Role, 7*24*time.Hour)
 	if err != nil {
 		return nil, customErr.ErrInternalServer
 	}
@@ -631,12 +631,12 @@ func (s *userService) RefreshToken(ctx context.Context, oldTokenString string) (
 
 	// 6. Generate Access Token & New Refresh Token (Rotation)
 	// 6. Sinh ra Access Token mới (thời gian sống ngắn, ví dụ 15 phút) và Refresh Token mới hoàn toàn (thời gian sống dài, ví dụ 7 ngày).
-	newAccessToken, err := auth.GenerateToken(user.ID, user.Email, 15*time.Minute)
+	newAccessToken, err := auth.GenerateToken(user.ID, user.Email, user.Role, 15*time.Minute)
 	if err != nil {
 		return nil, customErr.ErrInternalServer
 	}
 
-	newRefreshTokenString, err := auth.GenerateToken(user.ID, user.Email, 7*24*time.Hour)
+	newRefreshTokenString, err := auth.GenerateToken(user.ID, user.Email, user.Role, 7*24*time.Hour)
 	if err != nil {
 		return nil, customErr.ErrInternalServer
 	}

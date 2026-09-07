@@ -47,14 +47,14 @@ func (r *mysqlUserRepository) Create(ctx context.Context, u *model.User) error {
 // Lấy User theo ID
 func (r *mysqlUserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
 	//Chọn dữ liệu từ bảng users chỉ lấy những dòng chưa bị xóa (deleted_at IS NULL)
-	query := `SELECT id, full_name, email, password_hash, oauth_provider, 
+	query := `SELECT id, full_name, email, role, password_hash, oauth_provider, 
 		oauth_id, avatar_url, is_verified, created_at, updated_at, 
 		deleted_at FROM users WHERE id = ? AND deleted_at IS NULL`
 	u := &model.User{}
 
 	//Ánh xạ các cột trong kết quả trả về của database vào các trường tương ứng của struct u
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&u.ID, &u.FullName, &u.Email, &u.PasswordHash,
+		&u.ID, &u.FullName, &u.Email, &u.Role, &u.PasswordHash,
 		&u.OAuthProvider, &u.OAuthID, &u.AvatarURL, &u.IsVerified,
 		&u.CreatedAt, &u.UpdatedAt, &u.DeletedAt,
 	)
@@ -70,11 +70,11 @@ func (r *mysqlUserRepository) GetByID(ctx context.Context, id string) (*model.Us
 // Lấy User theo Email
 func (r *mysqlUserRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	//Chọn dữ liệu từ bảng users chỉ lấy những dòng chưa bị xóa (deleted_at IS NULL)
-	query := `SELECT id, full_name, email, password_hash, avatar_url, is_verified, created_at, updated_at, deleted_at FROM users WHERE email = ? AND deleted_at IS NULL`
+	query := `SELECT id, full_name, email,	 role, password_hash, avatar_url, is_verified, created_at, updated_at, deleted_at FROM users WHERE email = ? AND deleted_at IS NULL`
 	u := &model.User{}
 
 	//Ánh xạ các cột trong kết quả trả về của database vào các trường tương ứng của struct u
-	err := r.db.QueryRowContext(ctx, query, email).Scan(&u.ID, &u.FullName, &u.Email, &u.PasswordHash, &u.AvatarURL, &u.IsVerified, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
+	err := r.db.QueryRowContext(ctx, query, email).Scan(&u.ID, &u.FullName, &u.Email, &u.Role, &u.PasswordHash, &u.AvatarURL, &u.IsVerified, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("user not found")
@@ -131,10 +131,10 @@ func (r *mysqlUserRepository) UpdateVerificationStatusTx(ctx context.Context, tx
 
 // GetByEmailNoErrorNotFound truy vấn thông tin người dùng theo địa chỉ email, trả về nil thay vì lỗi sql.ErrNoRows nếu không tìm thấy bản ghi.
 func (r *mysqlUserRepository) GetByEmailNoErrorNotFound(ctx context.Context, email string) (*model.User, error) {
-	query := `SELECT id, full_name, email, password_hash, avatar_url, is_verified, created_at, updated_at, deleted_at FROM users WHERE email = ? AND deleted_at IS NULL`
+	query := `SELECT id, full_name, email, role, password_hash, avatar_url, is_verified, created_at, updated_at, deleted_at FROM users WHERE email = ? AND deleted_at IS NULL`
 	u := &model.User{}
 
-	err := r.db.QueryRowContext(ctx, query, email).Scan(&u.ID, &u.FullName, &u.Email, &u.PasswordHash, &u.AvatarURL, &u.IsVerified, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
+	err := r.db.QueryRowContext(ctx, query, email).Scan(&u.ID, &u.FullName, &u.Email, &u.Role, &u.PasswordHash, &u.AvatarURL, &u.IsVerified, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -156,12 +156,12 @@ func (r *mysqlUserRepository) UpdatePassword(ctx context.Context, id string, pas
 // GetByOAuth tìm kiếm và trả về thông tin người dùng từ cơ sở dữ liệu dựa vào nhà cung cấp OAuth và OAuth ID.
 func (r *mysqlUserRepository) GetByOAuth(ctx context.Context, provider, oauthID string) (*model.User, error) {
 	// Định nghĩa câu lệnh SQL lấy thông tin user khớp với provider và oauth_id, đồng thời bỏ qua các user đã bị xóa mềm.
-	query := `SELECT id, full_name, email, password_hash, oauth_provider, oauth_id, avatar_url, is_verified, created_at, updated_at, deleted_at FROM users WHERE oauth_provider = ? AND oauth_id = ? AND deleted_at IS NULL`
+	query := `SELECT id, full_name, email, role, password_hash, oauth_provider, oauth_id, avatar_url, is_verified, created_at, updated_at, deleted_at FROM users WHERE oauth_provider = ? AND oauth_id = ? AND deleted_at IS NULL`
 	u := &model.User{}
 
 	// Thực thi câu lệnh truy vấn và ánh xạ (scan) các cột dữ liệu nhận được vào struct `u`.
 	err := r.db.QueryRowContext(ctx, query, provider, oauthID).Scan(
-		&u.ID, &u.FullName, &u.Email, &u.PasswordHash, &u.OAuthProvider, &u.OAuthID, &u.AvatarURL, &u.IsVerified, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt,
+		&u.ID, &u.FullName, &u.Email, &u.Role, &u.PasswordHash, &u.OAuthProvider, &u.OAuthID, &u.AvatarURL, &u.IsVerified, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

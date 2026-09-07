@@ -11,6 +11,7 @@ import (
 type JWTClaims struct {
 	UserID string `json:"user_id"`
 	Email  string `json:"email"`
+	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -26,10 +27,11 @@ func getSecretKey() []byte {
 }
 
 // Tạo JWT mới
-func GenerateToken(userID string, email string, duration time.Duration) (string, error) {
+func GenerateToken(userID string, email string, role string, duration time.Duration) (string, error) {
 	claims := &JWTClaims{
 		UserID: userID,
 		Email:  email,
+		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(duration)),       //Thiết lập thời điểm token hết hạn
 			IssuedAt:  jwt.NewNumericDate(time.Now()),                     //Thiết lập thời điểm token bắt đầu được phát hành
