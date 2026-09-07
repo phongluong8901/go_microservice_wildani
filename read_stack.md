@@ -134,3 +134,16 @@ Khi áp dụng RTR, server cần lưu trạng thái hoặc chuỗi liên kết (
 Cách hoạt động: Server ghi nhận token nào đã bị sử dụng rồi. Nếu một ngày nào đó, một Refresh Token đã bị đánh dấu là "đã dùng/đã bị thay thế" mà lại xuất hiện thêm một yêu cầu đổi token lần nữa (thường xảy ra do kẻ tấn công đang cố dùng token cũ đã đánh cắp, trong khi người dùng thực sự vẫn đang dùng token mới), hệ thống sẽ lập tức nhận diện đây là hành vi tấn công chiếm đoạt phiên (Token Reuse Attack).
 
 Hành động phản ứng: Khi phát hiện tái sử dụng, hệ thống sẽ lập tức vô hiệu hóa toàn bộ chuỗi token đó, đồng thời thu hồi toàn bộ phiên đăng nhập của user trên mọi thiết bị (xóa sạch các key tương ứng trên Redis) và buộc người dùng phải đăng nhập lại từ đầu.
+
+11. Role Based Access Control (RBAC)
+admin -> can see all the user wallet and balance, freeze, log system
+user -> only see their wallet and balance
+
+Role-Based Access Control (RBAC) trong Go là mô hình phân quyền truy cập hệ thống dựa trên vai trò của người dùng (ví dụ: admin, user, merchant). Thay vì gán quyền trực tiếp cho từng cá nhân, ứng dụng sẽ gán quyền cho các role, sau đó phân role cho người dùng.
+
+các thành phần cốt lõi của RBAC
+User: Người dùng thực hiện request vào hệ thống.
+
+Role: Nhóm chức vụ hoặc tập hợp các quyền (Ví dụ: admin toàn quyền, user chỉ được xem và quản lý ví cá nhân).
+
+Permission: Quyền hạn chi tiết trên từng tài nguyên (Ví dụ: wallet:read, wallet:transfer).
