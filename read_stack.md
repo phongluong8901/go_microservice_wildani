@@ -2,6 +2,15 @@
 
 
 # --- stack
+1. go.work
+go.work (Go Workspace) là tính năng được Go giới thiệu từ phiên bản 1.18 để quản lý đồng thời nhiều module độc lập trong cùng một dự án lớn (như kiến trúc Microservices).
+
+Phát triển cục bộ (Local Development) dễ dàng: Khi bạn sửa code ở một module dùng chung (ví dụ: thư viện common hoặc pkg), các microservice khác đang dùng thư viện đó sẽ nhận ngay thay đổi mã nguồn ngay lập tức mà không cần phải go get hay đẩy lên Git rồi tải lại.
+
+hay thế hoàn toàn lệnh replace trong go.mod: Tránh việc phải cấu hình replace ../pkg thủ công ở từng go.mod của mỗi service (vốn rất dễ bị nhầm lẫn và gây lỗi khi build trên môi trường Production).
+
+Độc lập Dependency: Mỗi microservice vẫn giữ file go.mod riêng của nó để quản lý các thư viện bên thứ ba (như Gin, Gorm, JWT...), nhưng file go.work ở thư mục gốc sẽ đóng vai trò điều phối chung toàn bộ workspace.
+
 
 
 # --- more

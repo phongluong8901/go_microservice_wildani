@@ -1,0 +1,39 @@
+#--- clone ve vap proj_src
+cd proj_src
+git clone https://github.com/bashocode/gowallet.git
+cd gowallet
+git checkout 57efa56483055bcf6b7c16387be4c932e86b9f7c
+
+--- create folder
+
+---
+-- Khởi tạo module cho api-gateway
+cd microservices
+cd api-gateway
+go mod init github.com/username/gowallet/api-gateway
+
+-- Khởi tạo module cho shared
+cd microservices
+cd shared
+go mod init github.com/username/gowallet/shared
+
+-- khoi tao go.work
+cd proj_1
+cd microservices
+
+$env:GOTOOLCHAIN="go1.26.0"
+go work init ./api-gateway ./shared
+
+go work sync
+
+--- install go
+cd proj_1
+cd microservices
+
+--- run
+
+--- migrate
+
+--- deploy
+
+--- git
