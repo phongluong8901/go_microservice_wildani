@@ -21,7 +21,7 @@ go mod init github.com/username/gowallet/shared
 cd proj_1
 cd microservices
 
-$env:GOTOOLCHAIN="go1.26.0"
+- tao file
 go work init ./api-gateway ./shared
 
 go work sync
@@ -34,6 +34,16 @@ cd microservices
 
 --- migrate
 
+--- docker
+docker compose up --build -d
+docker compose down
+
 --- deploy
 
 --- git
+
+--- link check api
+API Gateway: http://localhost:8080/health
+MailHog Dashboard (Xem email giả lập): http://localhost:8025
+MySQL Database: localhost:3306
+Redis Cache: localhost:6379

@@ -1,4 +1,5 @@
 # --- lib
+"net/http/httputil" // Thư viện chuẩn của Go hỗ trợ xây dựng Reverse Proxy
 
 
 # --- stack
@@ -11,7 +12,20 @@ hay thế hoàn toàn lệnh replace trong go.mod: Tránh việc phải cấu h�
 
 Độc lập Dependency: Mỗi microservice vẫn giữ file go.mod riêng của nó để quản lý các thư viện bên thứ ba (như Gin, Gorm, JWT...), nhưng file go.work ở thư mục gốc sẽ đóng vai trò điều phối chung toàn bộ workspace.
 
+2. reverse proxy (proxy/reverse_proxy.go)
+Tác dụng chính của file reverse proxy (proxy/reverse_proxy.go) trong kiến trúc microservice là đóng vai trò như một cổng trung gian thông minh nhận toàn bộ request từ client (hoặc API Gateway) rồi âm thầm chuyển tiếp (forward) chúng đến các microservice backend phù hợp, cụ thể:
 
+Điều hướng và gom kênh (Routing): Giúp API Gateway không cần viết code xử lý nghiệp vụ thủ công cho từng đường dẫn, mà tự động nhận diện và ném request qua đúng service đích (ví dụ: /api/v1/auth/* sang Auth Service, /api/v1/wallets/* sang Wallet Service).
+
+Chuẩn hóa Request & Header (proxy.Rewrite):
+
+Ghi đè lại URL đích chuẩn xác thông qua r.SetURL(url).
+
+Lưu lại địa chỉ máy khách gốc vào header X-Forwarded-Host để service phía sau biết nguồn gốc request.
+
+Theo dõi vết phân tán (X-Correlation-ID): Tự động kiểm tra xem client đã gửi kèm mã X-Correlation-ID chưa. Nếu chưa (request mới tinh từ client ngoài vào), nó tự sinh một mã UUID mới. Mã này được đính kèm vào header để chuyền xuyên suốt qua tất cả các microservice phía sau, giúp lập trình viên dễ dàng tra cứu log khi hệ thống bị lỗi.
+
+Che giấu cấu trúc nội bộ: Các microservice con chạy ở các cổng nội bộ ẩn (như 8081, 8082, 8086) hoàn toàn bị che khuất với bên ngoài. Client bên ngoài chỉ giao tiếp duy nhất với API Gateway thông qua reverse proxy, giúp tăng tính bảo mật cho hệ thống mạng.
 
 # --- more
 1. Ledger system
