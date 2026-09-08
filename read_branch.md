@@ -129,3 +129,9 @@ git checkout -b p21_ledger_service
 git add .
 git commit -m "change: first"
 git push -u origin p21_ledger_service
+
+# --- -
+git checkout -b p22_transaction_service_SAGA
+git add .
+git commit -m "change: first"
+git push -u origin p22_transaction_service_SAGA
