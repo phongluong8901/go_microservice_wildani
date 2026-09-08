@@ -1,14 +1,15 @@
 DB_URL=mysql://gowallet_user:gowallet_password@tcp(localhost:3306)/gowallet
 AUTH_DB_URL=mysql://gowallet_user:gowallet_password@tcp(localhost:3306)/gowallet_auth
+USER_DB_URL=mysql://gowallet_user:gowallet_password@tcp(localhost:3306)/gowallet_user
 
-postgres:
-	docker run --name mysql-db -e MYSQL_ROOT_PASSWORD=secret -e MYSQL_DATABASE=gowallet -p 3306:3306 -d mysql:latest
+mysql-container:
+	docker run --name gowallet-mysql-ms -e MYSQL_ROOT_PASSWORD=rootpassword -e MYSQL_DATABASE=gowallet -p 3306:3306 -d mysql:latest
 
 createdb:
-	docker exec -it gowallet-mysql-ms mysql -u root -prootpassword -e "CREATE DATABASE IF NOT EXISTS gowallet; CREATE DATABASE IF NOT EXISTS gowallet_auth;"
+	docker exec -it gowallet-mysql-ms mysql -u root -prootpassword -e "CREATE DATABASE IF NOT EXISTS gowallet; CREATE DATABASE IF NOT EXISTS gowallet_auth; CREATE DATABASE IF NOT EXISTS gowallet_user;"
 
 dropdb:
-	docker exec -it gowallet-mysql-ms mysql -u root -prootpassword -e "DROP DATABASE IF EXISTS gowallet; DROP DATABASE IF EXISTS gowallet_auth;"
+	docker exec -it gowallet-mysql-ms mysql -u root -prootpassword -e "DROP DATABASE IF EXISTS gowallet; DROP DATABASE IF EXISTS gowallet_auth; DROP DATABASE IF EXISTS gowallet_user;"
 
 migrateup:
 	migrate -path db/migrations -database "$(DB_URL)" up
@@ -39,4 +40,16 @@ migratedrop-auth-service:
 
 auth_db_reset: migratedrop-auth-service migrateup-auth-service
 
-.PHONY: postgres createdb dropdb migrateup migratedown migratedrop db_reset create-auth-db drop-auth-db migrateup-auth-service migratedown-auth-service migratedrop-auth-service auth_db_reset
+# === User Service Specific Commands ===
+migrateup-user-service:
+	migrate -path user-service/db/migrations -database "$(USER_DB_URL)" up
+
+migratedown-user-service:
+	migrate -path user-service/db/migrations -database "$(USER_DB_URL)" down
+
+migratedrop-user-service:
+	migrate -path user-service/db/migrations -database "$(USER_DB_URL)" drop
+
+user_db_reset: migratedrop-user-service migrateup-user-service
+
+.PHONY: mysql-container createdb dropdb migrateup migratedown migratedrop db_reset create-auth-db drop-auth-db migrateup-auth-service migratedown-auth-service migratedrop-auth-service auth_db_reset migrateup-user-service migratedown-user-service migratedrop-user-service user_db_reset

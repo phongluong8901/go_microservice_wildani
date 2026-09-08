@@ -34,6 +34,12 @@ cd microservices
 cd auth-service
 go mod init github.com/bashocode/gowallet/microservices/auth-service
 
+-- user
+cd user-service
+go mod init github.com/bashocode/gowallet/microservices/user-service
+
+go get golang.org/x/oauth2
+go get golang.org/x/oauth2/google
 
 --- run
 
@@ -55,6 +61,11 @@ migrate create -ext sql -dir auth-service/db/migrations -seq create_refresh_toke
 make migrateup-auth-service
 
 -- user-service
+-
+migrate create -ext sql -dir user-service/db/migrations -seq create_user_and_otp_tables
+
+-
+make migrateup-auth-service
 
 --- docker
 docker compose up --build -d

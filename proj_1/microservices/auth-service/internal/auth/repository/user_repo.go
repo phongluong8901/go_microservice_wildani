@@ -22,7 +22,7 @@ func NewMySQLUserRepository(db *sql.DB) UserRepository {
 }
 
 func (r *mysqlUserRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
-	query := `SELECT id, full_name, email, role, password_hash, avatar_url, is_verified, created_at, updated_at FROM users WHERE email = ? AND deleted_at IS NULL`
+	query := `SELECT id, full_name, email, role, password_hash, avatar_url, is_verified, created_at, updated_at FROM gowallet_user.users WHERE email = ? AND deleted_at IS NULL`
 	u := &model.User{}
 
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
@@ -39,7 +39,7 @@ func (r *mysqlUserRepository) GetByEmail(ctx context.Context, email string) (*mo
 
 // Hàm truy vấn tìm kiếm một người dùng trong cơ sở dữ liệu dựa vào email, đồng thời kiểm tra điều kiện tài khoản chưa bị xóa mềm (deleted_at IS NULL).
 func (r *mysqlUserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
-	query := `SELECT id, full_name, email, role, password_hash, avatar_url, is_verified, created_at, updated_at FROM users WHERE id = ? AND deleted_at IS NULL`
+	query := `SELECT id, full_name, email, role, password_hash, avatar_url, is_verified, created_at, updated_at FROM gowallet_user.users WHERE id = ? AND deleted_at IS NULL`
 	u := &model.User{}
 
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
