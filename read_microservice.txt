@@ -84,8 +84,10 @@ migrate create -ext sql -dir user-service/db/migrations -seq create_user_and_otp
 -
 migrate create -ext sql -dir wallet-service/db/migrations -seq create_table_wallet
 
--
+- generate tables service
 make migrateup-auth-service
+make migrateup-user-service
+make migrateup-wallet-service
 
 --- gRPC generate file
 cd microservices
