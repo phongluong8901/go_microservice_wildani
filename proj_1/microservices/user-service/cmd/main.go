@@ -1,17 +1,22 @@
 package main
 
 import (
-	"log"
+	"net"
 
 	"github.com/bashocode/gowallet/microservices/shared/config"
 	"github.com/bashocode/gowallet/microservices/shared/database"
 	"github.com/bashocode/gowallet/microservices/shared/logger"
 	"github.com/bashocode/gowallet/microservices/shared/middleware"
 	"github.com/bashocode/gowallet/microservices/user-service/internal/email"
+	userGRPC "github.com/bashocode/gowallet/microservices/user-service/internal/user/grpc"
 	"github.com/bashocode/gowallet/microservices/user-service/internal/user/handler"
 	"github.com/bashocode/gowallet/microservices/user-service/internal/user/repository"
 	"github.com/bashocode/gowallet/microservices/user-service/internal/user/service"
+	pb "github.com/bashocode/gowallet/microservices/user-service/proto/user"
+	pbWallet "github.com/bashocode/gowallet/microservices/wallet-service/proto/wallet"
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -23,29 +28,55 @@ func main() {
 	// Connect to Redis
 	rdb, err := database.ConnectRedis(cfg.RedisAddr)
 	if err != nil {
-		log.Fatalf("Could not connect to Redis: %v", err)
+		logger.Fatal(nil, "Could not connect to Redis", "error", err)
 	}
 	defer rdb.Close()
 
 	// Connect to MySQL
 	db, err := database.ConnectWithRetry(cfg.DBDSN)
 	if err != nil {
-		log.Fatalf("Could not connect to database: %v", err)
+		logger.Fatal(nil, "Could not connect to database", "error", err)
 	}
 	defer db.Close()
 
 	// Initialize email sender
 	emailSender := email.NewSMTPEmailSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom)
 
+	// Connect to wallet-service gRPC
+	conn, err := grpc.NewClient(
+		cfg.WalletGRPCAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultServiceConfig(`{
+			"loadBalancingConfig": [{"round_robin":{}}],
+			"methodConfig": [{
+				"name": [{}],
+				"retryPolicy": {
+					"maxAttempts": 3,
+					"initialBackoff": "0.1s",
+					"maxBackoff": "1s",
+					"backoffMultiplier": 2.0,
+					"retryableStatusCodes": ["UNAVAILABLE", "DEADLINE_EXCEEDED"]
+				}
+			}]
+		}`),
+	)
+	if err != nil {
+		logger.Fatal(nil, "Failed to connect to wallet service", "error", err)
+	}
+	defer conn.Close()
+	// Note: isn't deferred here since the main function blocks on HTTP server, but we can defer it or keep it open.
+
+	walletClient := pbWallet.NewWalletServiceClient(conn)
+
 	// Initialize layers
 	userRepo := repository.NewMySQLUserRepository(db)
-	walletRepo := repository.NewMySQLWalletRepository(db)
 	otpRepo := repository.NewMySQLOTPRepository(db)
 
-	userSvc := service.NewUserService(db, rdb, userRepo, walletRepo, otpRepo, emailSender)
+	userSvc := service.NewUserService(db, rdb, userRepo, walletClient, otpRepo, emailSender)
 	userHandler := handler.NewUserHandler(userSvc)
 
 	r := gin.New()
+	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 	r.Use(middleware.ErrorHandler())
 
@@ -55,6 +86,7 @@ func main() {
 		v1.POST("/users/register", userHandler.Register)
 		v1.POST("/users/forgot-password", userHandler.ForgotPassword)
 		v1.POST("/users/verify-password-reset", userHandler.VerifyPasswordReset)
+		v1.GET("/users/verify-email", userHandler.VerifyEmail)
 
 		// Google OAuth Routes (Using specific path matching so it aligns with gateway redirect)
 		v1.GET("/auth/google/login", userHandler.GoogleLogin)
@@ -69,7 +101,6 @@ func main() {
 			protected.PUT("/users/:id", userHandler.UpdateProfile)
 			protected.GET("/users/:id", userHandler.GetProfile)
 			protected.DELETE("/users/me", userHandler.DeleteAccount)
-			protected.POST("/users/verify-email", userHandler.VerifyEmail)
 
 			// Admin Routes
 			adminOnly := protected.Group("/admin")
@@ -80,8 +111,30 @@ func main() {
 		}
 	}
 
+	// Start gRPC server
+	// Dynamic approach:
+	_, port, err := net.SplitHostPort(cfg.UserGRPCAddr)
+	if err != nil {
+		logger.Fatal(nil, "Failed to split host port: %v", err)
+	}
+
+	lis, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		logger.Fatal(nil, "Failed to listen gRPC port", "error", err)
+	}
+
+	grpcServer := grpc.NewServer()
+	pb.RegisterUserServiceServer(grpcServer, userGRPC.NewUserGRPCServer(userRepo))
+
+	go func() {
+		logger.Log.Info("User gRPC Server running on port 50052...")
+		if err := grpcServer.Serve(lis); err != nil {
+			logger.Fatal(nil, "Failed to serve gRPC", "error", err)
+		}
+	}()
+
 	logger.Log.Info("User Service listening on port 8084...")
 	if err := r.Run(":8084"); err != nil {
-		log.Fatalf("User Service failed: %v", err)
+		logger.Fatal(nil, "User Service failed", "error", err)
 	}
 }

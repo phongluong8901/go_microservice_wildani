@@ -1,6 +1,7 @@
 DB_URL=mysql://gowallet_user:gowallet_password@tcp(localhost:3306)/gowallet
 AUTH_DB_URL=mysql://gowallet_user:gowallet_password@tcp(localhost:3306)/gowallet_auth
 USER_DB_URL=mysql://gowallet_user:gowallet_password@tcp(localhost:3306)/gowallet_user
+WALLET_DB_URL=mysql://gowallet_user:gowallet_password@tcp(localhost:3306)/gowallet
 
 mysql-container:
 	docker run --name gowallet-mysql-ms -e MYSQL_ROOT_PASSWORD=rootpassword -e MYSQL_DATABASE=gowallet -p 3306:3306 -d mysql:latest
@@ -52,4 +53,11 @@ migratedrop-user-service:
 
 user_db_reset: migratedrop-user-service migrateup-user-service
 
-.PHONY: mysql-container createdb dropdb migrateup migratedown migratedrop db_reset create-auth-db drop-auth-db migrateup-auth-service migratedown-auth-service migratedrop-auth-service auth_db_reset migrateup-user-service migratedown-user-service migratedrop-user-service user_db_reset
+# === Run Services Locally ===
+run-user:
+	cd user-service && go run main.go
+
+run-auth:
+	cd auth-service && go run main.go
+
+.PHONY: mysql-container createdb dropdb migrateup migratedown migratedrop db_reset create-auth-db drop-auth-db migrateup-auth-service migratedown-auth-service migratedrop-auth-service auth_db_reset migrateup-user-service migratedown-user-service migratedrop-user-service user_db_reset run-user run-auth

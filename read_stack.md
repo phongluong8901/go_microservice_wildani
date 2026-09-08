@@ -27,6 +27,19 @@ Theo dõi vết phân tán (X-Correlation-ID): Tự động kiểm tra xem clien
 
 Che giấu cấu trúc nội bộ: Các microservice con chạy ở các cổng nội bộ ẩn (như 8081, 8082, 8086) hoàn toàn bị che khuất với bên ngoài. Client bên ngoài chỉ giao tiếp duy nhất với API Gateway thông qua reverse proxy, giúp tăng tính bảo mật cho hệ thống mạng.
 
+3. gRPC
+gRPC đóng vai trò là giao thức giao tiếp liên dịch vụ (Inter-service Communication) cực kỳ nhanh chóng và hiệu quả giữa các microservices (ví dụ: giữa API Gateway và các service phía sau như Auth Service, User Service) trong dự án này.
+
+Giao tiếp nội bộ tốc độ cao: Thay vì dùng HTTP/JSON truyền thống (REST API) vốn nặng nề và tốn tài nguyên khi gọi qua lại giữa các service, gRPC sử dụng HTTP/2 và định dạng nhị phân Protocol Buffers (Protobuf) giúp nén dữ liệu nhỏ hơn nhiều lần và truyền tải nhanh hơn.
+
+Định nghĩa hợp đồng rõ ràng (Contract-First): Thông qua các file .proto, dự án định nghĩa sẵn cấu trúc dữ liệu và các hàm (RPC methods) mà các service cung cấp. Từ đó, mã nguồn client và server cho các microservices được sinh ra tự động, đảm bảo tính đồng nhất và an toàn kiểu dữ liệu (type-safe).
+
+Hỗ trợ Streaming: gRPC hỗ trợ các luồng dữ liệu thời gian thực (Client/Server/Bi-directional Streaming), rất hữu ích cho các tính năng ví điện tử cần thông báo số dư hoặc giao dịch biến động theo thời gian thực.
+
+
+
+
+
 # --- more
 1. Ledger system
 

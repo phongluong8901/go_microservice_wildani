@@ -1,4 +1,4 @@
 
-DROP TABLE IF EXISTS wallets;
+
 DROP TABLE IF EXISTS otp_codes;
 DROP TABLE IF EXISTS users;
