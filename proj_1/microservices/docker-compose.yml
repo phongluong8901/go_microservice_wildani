@@ -1,160 +1,187 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  # === Infrastructure ===
-  mysql:
-    image: mysql:8.0
-    container_name: gowallet-mysql-ms
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${DB_NAME_DEFAULT}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "${DB_PORT}:${DB_PORT}"
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./db-init:/docker-entrypoint-initdb.d
-    networks:
-      - gowallet-network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    # === Infrastructure ===
+    mysql:
+        image: mysql:8.0
+        container_name: gowallet-mysql-ms
+        environment:
+            MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+            MYSQL_DATABASE: ${DB_NAME_DEFAULT}
+            MYSQL_USER: ${DB_USER}
+            MYSQL_PASSWORD: ${DB_PASSWORD}
+        ports:
+            - "${DB_PORT}:${DB_PORT}"
+        volumes:
+            - mysql_data:/var/lib/mysql
+            - ./db-init:/docker-entrypoint-initdb.d
+        networks:
+            - gowallet-network
+        healthcheck:
+            test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: gowallet-redis-ms
-    ports:
-      - "${REDIS_PORT}:${REDIS_PORT}"
-    networks:
-      - gowallet-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    redis:
+        image: redis:7-alpine
+        container_name: gowallet-redis-ms
+        ports:
+            - "${REDIS_PORT}:${REDIS_PORT}"
+        networks:
+            - gowallet-network
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
 
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: gowallet-mailhog-ms
-    ports:
-      - "${MAILHOG_PORT}:${MAILHOG_PORT}" # SMTP port
-      - "${MAILHOG_WEB_PORT}:${MAILHOG_WEB_PORT}" # Web UI dashboard port
-    networks:
-      - gowallet-network
-    restart: always
+    mailhog:
+        image: mailhog/mailhog:latest
+        container_name: gowallet-mailhog-ms
+        ports:
+            - "${MAILHOG_PORT}:${MAILHOG_PORT}" # SMTP port
+            - "${MAILHOG_WEB_PORT}:${MAILHOG_WEB_PORT}" # Web UI dashboard port
+        networks:
+            - gowallet-network
+        restart: always
 
-  # === Application Services ===
-  api-gateway:
-    build:
-      context: .
-      dockerfile: api-gateway/Dockerfile
-    container_name: gowallet-api-gateway-ms
-    ports:
-      - "${GATEWAY_PORT}:${GATEWAY_PORT}"
-    environment:
-      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL}
-      USER_SERVICE_URL: ${USER_SERVICE_URL}
-      WALLET_SERVICE_URL: ${WALLET_SERVICE_URL}
-      TRANSACTION_SERVICE_URL: ${TRANSACTION_SERVICE_URL}
-      PAYMENT_SERVICE_URL: ${PAYMENT_SERVICE_URL}
-    depends_on:
-      auth-service:
-        condition: service_started
-      user-service:
-        condition: service_started
-      wallet-service:
-        condition: service_started
-    networks:
-      - gowallet-network
-    restart: unless-stopped
+    # === Application Services ===
+    api-gateway:
+        build:
+            context: .
+            dockerfile: api-gateway/Dockerfile
+        container_name: gowallet-api-gateway-ms
+        ports:
+            - "${GATEWAY_PORT}:${GATEWAY_PORT}"
+        environment:
+            AUTH_SERVICE_URL: ${AUTH_SERVICE_URL}
+            USER_SERVICE_URL: ${USER_SERVICE_URL}
+            WALLET_SERVICE_URL: ${WALLET_SERVICE_URL}
+            LEDGER_SERVICE_URL: ${LEDGER_SERVICE_URL}
+            TRANSACTION_SERVICE_URL: ${TRANSACTION_SERVICE_URL}
+            PAYMENT_SERVICE_URL: ${PAYMENT_SERVICE_URL}
+        depends_on:
+            auth-service:
+                condition: service_started
+            user-service:
+                condition: service_started
+            wallet-service:
+                condition: service_started
+            ledger-service:
+                condition: service_started
+        networks:
+            - gowallet-network
+        restart: unless-stopped
 
-  auth-service:
-    build:
-      context: .
-      dockerfile: auth-service/Dockerfile
-    container_name: gowallet-auth-service-ms
-    ports:
-      - "${AUTH_PORT}:${AUTH_PORT}"
-    environment:
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_NAME=${DB_NAME_AUTH}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-      - JWT_SECRET=${JWT_SECRET}
-      - USER_GRPC_ADDR=${USER_GRPC_ADDR}
-    depends_on:
-      - mysql
-      - redis
-      - user-service
-    networks:
-      - gowallet-network
-    restart: unless-stopped
+    auth-service:
+        build:
+            context: .
+            dockerfile: auth-service/Dockerfile
+        container_name: gowallet-auth-service-ms
+        ports:
+            - "${AUTH_PORT}:${AUTH_PORT}"
+        environment:
+            - DB_USER=${DB_USER}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - DB_HOST=${DB_HOST}
+            - DB_PORT=${DB_PORT}
+            - DB_NAME=${DB_NAME_AUTH}
+            - REDIS_HOST=${REDIS_HOST}
+            - REDIS_PORT=${REDIS_PORT}
+            - JWT_SECRET=${JWT_SECRET}
+            - USER_GRPC_ADDR=${USER_GRPC_ADDR}
+        depends_on:
+            - mysql
+            - redis
+            - user-service
+        networks:
+            - gowallet-network
+        restart: unless-stopped
 
-  user-service:
-    build:
-      context: .
-      dockerfile: user-service/Dockerfile
-    container_name: gowallet-user-service-ms
-    ports:
-      - "${USER_PORT}:${USER_PORT}"
-    environment:
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_NAME=${DB_NAME_USER}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-      - JWT_SECRET=${JWT_SECRET}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL}
-      - SMTP_HOST=${SMTP_HOST}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_FROM=${SMTP_FROM}
-      - WALLET_GRPC_ADDR=${WALLET_GRPC_ADDR}
-    depends_on:
-      - mysql
-      - redis
-    networks:
-      - gowallet-network
-    restart: unless-stopped
+    user-service:
+        build:
+            context: .
+            dockerfile: user-service/Dockerfile
+        container_name: gowallet-user-service-ms
+        ports:
+            - "${USER_PORT}:${USER_PORT}"
+        environment:
+            - DB_USER=${DB_USER}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - DB_HOST=${DB_HOST}
+            - DB_PORT=${DB_PORT}
+            - DB_NAME=${DB_NAME_USER}
+            - REDIS_HOST=${REDIS_HOST}
+            - REDIS_PORT=${REDIS_PORT}
+            - JWT_SECRET=${JWT_SECRET}
+            - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+            - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+            - GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL}
+            - SMTP_HOST=${SMTP_HOST}
+            - SMTP_PORT=${SMTP_PORT}
+            - SMTP_FROM=${SMTP_FROM}
+            - WALLET_GRPC_ADDR=${WALLET_GRPC_ADDR}
+        depends_on:
+            - mysql
+            - redis
+        networks:
+            - gowallet-network
+        restart: unless-stopped
 
-  wallet-service:
-    build:
-      context: .
-      dockerfile: wallet-service/Dockerfile
-    container_name: gowallet-wallet-service-ms
-    ports:
-      - "8082:8082"
-      - "50053:50053"
-    environment:
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_NAME=${DB_NAME_WALLET}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-      - JWT_SECRET=${JWT_SECRET}
-    depends_on:
-      - mysql
-      - redis
-    networks:
-      - gowallet-network
-    restart: unless-stopped
+    wallet-service:
+        build:
+            context: .
+            dockerfile: wallet-service/Dockerfile
+        container_name: gowallet-wallet-service-ms
+        ports:
+            - "8082:8082"
+            - "50053:50053"
+        environment:
+            - DB_USER=${DB_USER}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - DB_HOST=${DB_HOST}
+            - DB_PORT=${DB_PORT}
+            - DB_NAME=${DB_NAME_WALLET}
+            - REDIS_HOST=${REDIS_HOST}
+            - REDIS_PORT=${REDIS_PORT}
+            - JWT_SECRET=${JWT_SECRET}
+        depends_on:
+            - mysql
+            - redis
+        networks:
+            - gowallet-network
+        restart: unless-stopped
+
+    ledger-service:
+        build:
+            context: .
+            dockerfile: ledger-service/Dockerfile
+        container_name: gowallet-ledger-service-ms
+        ports:
+            - "8085:8085"
+            - "50054:50054"
+        environment:
+            - DB_USER=${DB_USER}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - DB_HOST=${DB_HOST}
+            - DB_PORT=${DB_PORT}
+            - DB_NAME=${DB_NAME_LEDGER}
+            - REDIS_HOST=${REDIS_HOST}
+            - REDIS_PORT=${REDIS_PORT}
+            - JWT_SECRET=${JWT_SECRET}
+            - WALLET_GRPC_ADDR=${WALLET_GRPC_ADDR}
+        depends_on:
+            - mysql
+            - redis
+        networks:
+            - gowallet-network
+        restart: unless-stopped
 
 volumes:
-  mysql_data:
-  mongo_data:
+    mysql_data:
+    mongo_data:
 
 networks:
-  gowallet-network:
-    driver: bridge
-    
+    gowallet-network:
+        driver: bridge

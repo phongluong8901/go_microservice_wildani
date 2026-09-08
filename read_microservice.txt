@@ -49,13 +49,18 @@ go mod init github.com/bashocode/gowallet/microservices/auth-service
 -- user
 cd user-service
 go mod init github.com/bashocode/gowallet/microservices/user-service
+go get golang.org/x/oauth2
+go get golang.org/x/oauth2/google
 
 -- wallet
 cd wallet-service
 go mod init github.com/bashocode/gowallet/microservices/wallet-service
 
-go get golang.org/x/oauth2
-go get golang.org/x/oauth2/google
+-- ledger
+cd ledger-service
+go mod init github.com/bashocode/goledger/microservices/ledger-service
+
+
 
 --- run
 
@@ -84,10 +89,15 @@ migrate create -ext sql -dir user-service/db/migrations -seq create_user_and_otp
 -
 migrate create -ext sql -dir wallet-service/db/migrations -seq create_table_wallet
 
+-- ledger-service
+-
+migrate create -ext sql -dir ledger-service/db/migrations -seq create_table_ledger
+
 - generate tables service
 make migrateup-auth-service
 make migrateup-user-service
 make migrateup-wallet-service
+make migrateup-ledger-service
 
 --- gRPC generate file
 cd microservices
@@ -104,6 +114,13 @@ protoc --go_out=. --go-grpc_out=. proto/wallet/wallet.proto
 
 - copy tu proto -> wallet-service
 cp -r github.com/bashocode/gowallet/microservices/wallet-service/proto/wallet/ wallet-service/proto/wallet/
+
+- generate file ledger
+protoc --go_out=. --go-grpc_out=. proto/ledger/ledger.proto
+
+- copy tu proto -> ledger-service
+cp -r github.com/bashocode/gowallet/microservices/ledger-service/proto/ledger/ ledger-service/proto/ledger/
+
 
 --- check cac api nao dung grpc
 cd user-service

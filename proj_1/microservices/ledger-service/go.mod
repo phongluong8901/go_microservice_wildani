@@ -1,11 +1,14 @@
-module github.com/bashocode/gowallet/microservices/wallet-service
+module github.com/bashocode/gowallet/microservices/ledger-service
 
 go 1.26.4
 
 require (
+	github.com/bashocode/gowallet/microservices/ledger-service v0.0.0-20260802100100-622dd0e3b37b
 	github.com/bashocode/gowallet/microservices/shared v0.0.0-20260802100100-622dd0e3b37b
+	github.com/bashocode/gowallet/microservices/wallet-service v0.0.0-20260802100100-622dd0e3b37b
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0
+	github.com/shopspring/decimal v1.4.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 )
@@ -54,7 +57,6 @@ require (
 	github.com/rabbitmq/amqp091-go v1.12.0 // indirect
 	github.com/redis/go-redis/v9 v9.21.0 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
-	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect

@@ -6,4 +6,5 @@ use (
 	./shared
 	./user-service
 	./wallet-service
+	./ledger-service
 )
