@@ -58,8 +58,11 @@ go mod init github.com/bashocode/gowallet/microservices/wallet-service
 
 -- ledger
 cd ledger-service
-go mod init github.com/bashocode/goledger/microservices/ledger-service
+go mod init github.com/bashocode/gowallet/microservices/ledger-service
 
+-- transaction
+cd transaction-service
+go mod init github.com/bashocode/gowallet/microservices/transaction-service
 
 
 --- run
@@ -71,6 +74,9 @@ cd auth-service
 
 
 
+--- Makefifle.dev
+- build 6 service ra .exe
+make -f Makefile.dev build-linux
 
 
 --- migrate
@@ -92,6 +98,11 @@ migrate create -ext sql -dir wallet-service/db/migrations -seq create_table_wall
 -- ledger-service
 -
 migrate create -ext sql -dir ledger-service/db/migrations -seq create_table_ledger
+
+-- transaction-service
+-
+migrate create -ext sql -dir transaction-service/db/migrations -seq add_transaction_table
+
 
 - generate tables service
 make migrateup-auth-service

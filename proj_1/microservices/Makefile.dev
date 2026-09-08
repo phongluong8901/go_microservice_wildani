@@ -1,0 +1,15 @@
+build-linux:
+	@powershell -ExecutionPolicy Bypass -File build.ps1 linux
+
+build-windows:
+	@powershell -ExecutionPolicy Bypass -File build.ps1 windows
+
+build-native:
+	@powershell -ExecutionPolicy Bypass -File build.ps1 native
+
+clean:
+	@powershell -Command "Get-ChildItem -Recurse -Filter bin | Remove-Item -Recurse -Force"
+	@echo Clean completed!
+
+help:
+	@echo Usage: make -f Makefile.dev [build-linux | build-windows | clean]

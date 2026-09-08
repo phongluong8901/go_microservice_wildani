@@ -36,9 +36,28 @@ Giao tiếp nội bộ tốc độ cao: Thay vì dùng HTTP/JSON truyền thốn
 
 Hỗ trợ Streaming: gRPC hỗ trợ các luồng dữ liệu thời gian thực (Client/Server/Bi-directional Streaming), rất hữu ích cho các tính năng ví điện tử cần thông báo số dư hoặc giao dịch biến động theo thời gian thực.
 
+4. Saga Pattern
+Saga Pattern là một mẫu thiết kế kiến trúc phần mềm dùng để quản lý giao dịch phân tán (distributed transactions) trong các hệ thống microservices.
 
+Trong hệ thống microservices của bạn, mỗi service (như wallet-service, ledger-service, user-service) có cơ sở dữ liệu riêng biệt. Khi một nghiệp vụ lớn xảy ra (ví dụ: chuyển tiền từ ví này sang ví khác), nó cần thao tác qua nhiều service. Bạn không thể dùng lệnh COMMIT hoặc ROLLBACK truyền thống của cơ sở dữ liệu trên nhiều database độc lập như vậy được. Saga sinh ra để giải quyết bài toán này.
 
+Cách hoạt động của Saga:
+Saga chia một giao dịch lớn thành một chuỗi các bước cục bộ (local transactions) nhỏ thực hiện tuần tự qua các service:
 
+Bước 1: Service A thực hiện transaction của nó và phát ra một sự kiện (event) hoặc lời gọi tới Service B.
+
+Bước 2: Service B nhận được, thực hiện transaction của nó.
+
+Nếu tất cả thành công: Giao dịch hoàn tất.
+
+Nếu một bước bị lỗi (Failure): Saga sẽ kích hoạt các giao dịch bù trừ (compensating transactions) để đi ngược lại các bước đã làm trước đó nhằm hoàn tác (rollback) dữ liệu về trạng thái ban đầu, đảm bảo tính nhất quán cuối cùng (eventual consistency).
+
+Vai trò cụ thể của Saga trong mã nguồn của bạn:
+Đảm bảo tính nhất quán tài chính: Trong ứng dụng ví điện tử (gowallet), việc sai sót lệch tiền giữa các tài khoản là tối kỵ. Saga đóng vai trò điều phối dòng tiền đi qua các bước (ví dụ: trừ tiền ví nguồn $\rightarrow$ cộng tiền ví đích $\rightarrow$ ghi nhận sổ cái ledger).
+
+Xử lý lỗi phân tán (Failure Recovery): Nếu hệ thống ghi sổ cái (ledger-service) bị lỗi sau khi ví đã bị trừ tiền, Saga đảm bảo tiền trong ví sẽ được tự động hoàn trả thay vì bị mất tích giữa chừng.
+
+Giải phóng ràng buộc Database: Cho phép các microservices hoạt động độc lập, dùng database riêng mà vẫn phối hợp chặt chẽ được với nhau trong các nghiệp vụ phức tạp.
 
 # --- more
 1. Ledger system

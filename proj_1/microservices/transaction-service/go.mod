@@ -1,14 +1,17 @@
-module github.com/bashocode/gowallet/microservices/wallet-service
+module github.com/bashocode/gowallet/microservices/transaction-service
 
 go 1.25.0
 
 require (
+	github.com/bashocode/gowallet/microservices/ledger-service v0.0.0-20260802100100-622dd0e3b37b
 	github.com/bashocode/gowallet/microservices/shared v0.0.0-20260802100100-622dd0e3b37b
+	github.com/bashocode/gowallet/microservices/user-service v0.0.0-20260802100100-622dd0e3b37b
+	github.com/bashocode/gowallet/microservices/wallet-service v0.0.0-20260802100100-622dd0e3b37b
 	github.com/gin-gonic/gin v1.12.0
+	github.com/go-playground/validator/v10 v10.30.4
 	github.com/google/uuid v1.6.0
 	github.com/shopspring/decimal v1.4.0
 	google.golang.org/grpc v1.83.2
-	google.golang.org/protobuf v1.36.12
 )
 
 require (
@@ -27,7 +30,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
-	github.com/go-playground/validator/v10 v10.30.4 // indirect
 	github.com/go-sql-driver/mysql v1.10.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
@@ -82,4 +84,5 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 )
