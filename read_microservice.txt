@@ -120,6 +120,9 @@ make migrateup-user-service
 make migrateup-wallet-service
 make migrateup-ledger-service
 
+- make het
+make migrateup-all
+
 --- gRPC generate file
 cd microservices
 

@@ -40,8 +40,8 @@ services:
         image: mailhog/mailhog:latest
         container_name: gowallet-mailhog-ms
         ports:
-            - "${MAILHOG_PORT}:${MAILHOG_PORT}" # SMTP port
-            - "${MAILHOG_WEB_PORT}:${MAILHOG_WEB_PORT}" # Web UI dashboard port
+            - "${MAILHOG_PORT}:${MAILHOG_PORT}"
+            - "${MAILHOG_WEB_PORT}:${MAILHOG_WEB_PORT}"
         networks:
             - gowallet-network
         restart: always
@@ -100,9 +100,12 @@ services:
             - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
             - GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL}
         depends_on:
-            - mysql
-            - redis
-            - user-service
+            mysql:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            user-service:
+                condition: service_started
         networks:
             - gowallet-network
         restart: unless-stopped
@@ -128,8 +131,10 @@ services:
             - SMTP_FROM=${SMTP_FROM}
             - WALLET_GRPC_ADDR=${WALLET_GRPC_ADDR}
         depends_on:
-            - mysql
-            - redis
+            mysql:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
         networks:
             - gowallet-network
         restart: unless-stopped
@@ -152,8 +157,10 @@ services:
             - REDIS_PORT=${REDIS_PORT}
             - JWT_SECRET=${JWT_SECRET}
         depends_on:
-            - mysql
-            - redis
+            mysql:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
         networks:
             - gowallet-network
         restart: unless-stopped
@@ -177,8 +184,10 @@ services:
             - JWT_SECRET=${JWT_SECRET}
             - WALLET_GRPC_ADDR=${WALLET_GRPC_ADDR}
         depends_on:
-            - mysql
-            - redis
+            mysql:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
         networks:
             - gowallet-network
         restart: unless-stopped
@@ -204,11 +213,16 @@ services:
             - WALLET_GRPC_ADDR=${WALLET_GRPC_ADDR}
             - LEDGER_GRPC_ADDR=${LEDGER_GRPC_ADDR}
         depends_on:
-            - mysql
-            - redis
-            - user-service
-            - wallet-service
-            - ledger-service
+            mysql:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            user-service:
+                condition: service_started
+            wallet-service:
+                condition: service_started
+            ledger-service:
+                condition: service_started
         networks:
             - gowallet-network
         restart: unless-stopped
@@ -234,9 +248,12 @@ services:
             - TRANSACTION_GRPC_ADDR=${TRANSACTION_GRPC_ADDR}
             - BASE_URL=${BASE_URL}
         depends_on:
-            - mysql
-            - redis
-            - transaction-service
+            mysql:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            transaction-service:
+                condition: service_started
         networks:
             - gowallet-network
         restart: unless-stopped
