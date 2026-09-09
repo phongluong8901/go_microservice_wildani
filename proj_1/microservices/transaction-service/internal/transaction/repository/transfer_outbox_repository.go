@@ -52,6 +52,11 @@ func (r *mysqlTransferOutboxRepository) FetchPending(ctx context.Context, limit 
 		}
 		events = append(events, e)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	
 	return events, nil
 }
 

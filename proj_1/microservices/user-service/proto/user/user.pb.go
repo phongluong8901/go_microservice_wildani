@@ -349,6 +349,274 @@ func (x *CleanupResponse) GetDeletedCount() int32 {
 	return 0
 }
 
+type OutboxEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	EventType     string                 `protobuf:"bytes,2,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
+	Payload       string                 `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
+	Status        string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OutboxEvent) Reset() {
+	*x = OutboxEvent{}
+	mi := &file_proto_user_user_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OutboxEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OutboxEvent) ProtoMessage() {}
+
+func (x *OutboxEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OutboxEvent.ProtoReflect.Descriptor instead.
+func (*OutboxEvent) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *OutboxEvent) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *OutboxEvent) GetEventType() string {
+	if x != nil {
+		return x.EventType
+	}
+	return ""
+}
+
+func (x *OutboxEvent) GetPayload() string {
+	if x != nil {
+		return x.Payload
+	}
+	return ""
+}
+
+func (x *OutboxEvent) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *OutboxEvent) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+type FetchEventsToArchiveRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MinAgeSeconds int64                  `protobuf:"varint,1,opt,name=min_age_seconds,json=minAgeSeconds,proto3" json:"min_age_seconds,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FetchEventsToArchiveRequest) Reset() {
+	*x = FetchEventsToArchiveRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FetchEventsToArchiveRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FetchEventsToArchiveRequest) ProtoMessage() {}
+
+func (x *FetchEventsToArchiveRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FetchEventsToArchiveRequest.ProtoReflect.Descriptor instead.
+func (*FetchEventsToArchiveRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *FetchEventsToArchiveRequest) GetMinAgeSeconds() int64 {
+	if x != nil {
+		return x.MinAgeSeconds
+	}
+	return 0
+}
+
+func (x *FetchEventsToArchiveRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type FetchEventsToArchiveResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Events        []*OutboxEvent         `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FetchEventsToArchiveResponse) Reset() {
+	*x = FetchEventsToArchiveResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FetchEventsToArchiveResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FetchEventsToArchiveResponse) ProtoMessage() {}
+
+func (x *FetchEventsToArchiveResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FetchEventsToArchiveResponse.ProtoReflect.Descriptor instead.
+func (*FetchEventsToArchiveResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *FetchEventsToArchiveResponse) GetEvents() []*OutboxEvent {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+type DeleteArchivedEventsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ids           []string               `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteArchivedEventsRequest) Reset() {
+	*x = DeleteArchivedEventsRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteArchivedEventsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteArchivedEventsRequest) ProtoMessage() {}
+
+func (x *DeleteArchivedEventsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteArchivedEventsRequest.ProtoReflect.Descriptor instead.
+func (*DeleteArchivedEventsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *DeleteArchivedEventsRequest) GetIds() []string {
+	if x != nil {
+		return x.Ids
+	}
+	return nil
+}
+
+type DeleteArchivedEventsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteArchivedEventsResponse) Reset() {
+	*x = DeleteArchivedEventsResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteArchivedEventsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteArchivedEventsResponse) ProtoMessage() {}
+
+func (x *DeleteArchivedEventsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteArchivedEventsResponse.ProtoReflect.Descriptor instead.
+func (*DeleteArchivedEventsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *DeleteArchivedEventsResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *DeleteArchivedEventsResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_proto_user_user_proto protoreflect.FileDescriptor
 
 const file_proto_user_user_proto_rawDesc = "" +
@@ -375,13 +643,33 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"isVerified\"\x10\n" +
 	"\x0eCleanupRequest\"6\n" +
 	"\x0fCleanupResponse\x12#\n" +
-	"\rdeleted_count\x18\x01 \x01(\x05R\fdeletedCount2\x87\x02\n" +
+	"\rdeleted_count\x18\x01 \x01(\x05R\fdeletedCount\"\x8d\x01\n" +
+	"\vOutboxEvent\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
+	"\n" +
+	"event_type\x18\x02 \x01(\tR\teventType\x12\x18\n" +
+	"\apayload\x18\x03 \x01(\tR\apayload\x12\x16\n" +
+	"\x06status\x18\x04 \x01(\tR\x06status\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\tR\tcreatedAt\"[\n" +
+	"\x1bFetchEventsToArchiveRequest\x12&\n" +
+	"\x0fmin_age_seconds\x18\x01 \x01(\x03R\rminAgeSeconds\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\"I\n" +
+	"\x1cFetchEventsToArchiveResponse\x12)\n" +
+	"\x06events\x18\x01 \x03(\v2\x11.user.OutboxEventR\x06events\"/\n" +
+	"\x1bDeleteArchivedEventsRequest\x12\x10\n" +
+	"\x03ids\x18\x01 \x03(\tR\x03ids\"N\n" +
+	"\x1cDeleteArchivedEventsResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error2\xc5\x03\n" +
 	"\vUserService\x127\n" +
 	"\vGetUserByID\x12\x14.user.GetUserRequest\x1a\x12.user.UserResponse\x12A\n" +
 	"\x0eGetUserByEmail\x12\x1b.user.GetUserByEmailRequest\x1a\x12.user.UserResponse\x129\n" +
 	"\n" +
 	"CreateUser\x12\x17.user.CreateUserRequest\x1a\x12.user.UserResponse\x12A\n" +
-	"\x12CleanupExpiredOTPs\x12\x14.user.CleanupRequest\x1a\x15.user.CleanupResponseBEZCgithub.com/bashocode/gowallet/microservices/user-service/proto/userb\x06proto3"
+	"\x12CleanupExpiredOTPs\x12\x14.user.CleanupRequest\x1a\x15.user.CleanupResponse\x12]\n" +
+	"\x14FetchEventsToArchive\x12!.user.FetchEventsToArchiveRequest\x1a\".user.FetchEventsToArchiveResponse\x12]\n" +
+	"\x14DeleteArchivedEvents\x12!.user.DeleteArchivedEventsRequest\x1a\".user.DeleteArchivedEventsResponseBEZCgithub.com/bashocode/gowallet/microservices/user-service/proto/userb\x06proto3"
 
 var (
 	file_proto_user_user_proto_rawDescOnce sync.Once
@@ -395,29 +683,39 @@ func file_proto_user_user_proto_rawDescGZIP() []byte {
 	return file_proto_user_user_proto_rawDescData
 }
 
-var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_proto_user_user_proto_goTypes = []any{
-	(*GetUserRequest)(nil),        // 0: user.GetUserRequest
-	(*GetUserByEmailRequest)(nil), // 1: user.GetUserByEmailRequest
-	(*CreateUserRequest)(nil),     // 2: user.CreateUserRequest
-	(*UserResponse)(nil),          // 3: user.UserResponse
-	(*CleanupRequest)(nil),        // 4: user.CleanupRequest
-	(*CleanupResponse)(nil),       // 5: user.CleanupResponse
+	(*GetUserRequest)(nil),               // 0: user.GetUserRequest
+	(*GetUserByEmailRequest)(nil),        // 1: user.GetUserByEmailRequest
+	(*CreateUserRequest)(nil),            // 2: user.CreateUserRequest
+	(*UserResponse)(nil),                 // 3: user.UserResponse
+	(*CleanupRequest)(nil),               // 4: user.CleanupRequest
+	(*CleanupResponse)(nil),              // 5: user.CleanupResponse
+	(*OutboxEvent)(nil),                  // 6: user.OutboxEvent
+	(*FetchEventsToArchiveRequest)(nil),  // 7: user.FetchEventsToArchiveRequest
+	(*FetchEventsToArchiveResponse)(nil), // 8: user.FetchEventsToArchiveResponse
+	(*DeleteArchivedEventsRequest)(nil),  // 9: user.DeleteArchivedEventsRequest
+	(*DeleteArchivedEventsResponse)(nil), // 10: user.DeleteArchivedEventsResponse
 }
 var file_proto_user_user_proto_depIdxs = []int32{
-	0, // 0: user.UserService.GetUserByID:input_type -> user.GetUserRequest
-	1, // 1: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
-	2, // 2: user.UserService.CreateUser:input_type -> user.CreateUserRequest
-	4, // 3: user.UserService.CleanupExpiredOTPs:input_type -> user.CleanupRequest
-	3, // 4: user.UserService.GetUserByID:output_type -> user.UserResponse
-	3, // 5: user.UserService.GetUserByEmail:output_type -> user.UserResponse
-	3, // 6: user.UserService.CreateUser:output_type -> user.UserResponse
-	5, // 7: user.UserService.CleanupExpiredOTPs:output_type -> user.CleanupResponse
-	4, // [4:8] is the sub-list for method output_type
-	0, // [0:4] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	6,  // 0: user.FetchEventsToArchiveResponse.events:type_name -> user.OutboxEvent
+	0,  // 1: user.UserService.GetUserByID:input_type -> user.GetUserRequest
+	1,  // 2: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
+	2,  // 3: user.UserService.CreateUser:input_type -> user.CreateUserRequest
+	4,  // 4: user.UserService.CleanupExpiredOTPs:input_type -> user.CleanupRequest
+	7,  // 5: user.UserService.FetchEventsToArchive:input_type -> user.FetchEventsToArchiveRequest
+	9,  // 6: user.UserService.DeleteArchivedEvents:input_type -> user.DeleteArchivedEventsRequest
+	3,  // 7: user.UserService.GetUserByID:output_type -> user.UserResponse
+	3,  // 8: user.UserService.GetUserByEmail:output_type -> user.UserResponse
+	3,  // 9: user.UserService.CreateUser:output_type -> user.UserResponse
+	5,  // 10: user.UserService.CleanupExpiredOTPs:output_type -> user.CleanupResponse
+	8,  // 11: user.UserService.FetchEventsToArchive:output_type -> user.FetchEventsToArchiveResponse
+	10, // 12: user.UserService.DeleteArchivedEvents:output_type -> user.DeleteArchivedEventsResponse
+	7,  // [7:13] is the sub-list for method output_type
+	1,  // [1:7] is the sub-list for method input_type
+	1,  // [1:1] is the sub-list for extension type_name
+	1,  // [1:1] is the sub-list for extension extendee
+	0,  // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_proto_user_user_proto_init() }
@@ -431,7 +729,7 @@ func file_proto_user_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_user_user_proto_rawDesc), len(file_proto_user_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

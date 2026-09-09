@@ -184,6 +184,13 @@ protoc --go_out=. --go-grpc_out=. proto/auth/auth.proto
 cp -r github.com/bashocode/gowallet/microservices/auth-service/proto/auth/ auth-service/proto/auth/
 
 
+- generate file payment
+protoc --go_out=. --go-grpc_out=. proto/payment/payment.proto
+
+- copy tu proto -> payment-service
+cp -r github.com/bashocode/gowallet/microservices/payment-service/proto/payment/ payment-service/proto/payment/
+
+
 
 --- check cac api nao dung grpc
 cd user-service

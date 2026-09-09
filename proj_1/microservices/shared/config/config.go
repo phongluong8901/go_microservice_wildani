@@ -23,6 +23,7 @@ type Config struct {
 	WalletServiceURL      string
 	LedgerServiceURL      string
 	TransactionServiceURL string
+	PaymentGRPCAddr       string
 	PaymentServiceURL     string
 	UserGRPCAddr          string
 	WalletGRPCAddr        string
@@ -43,6 +44,10 @@ type Config struct {
 	UserPort              string
 	LedgerPort            string
 	TransactionPort       string
+	MinioEndpoint         string
+	MinioAccessKey        string
+	MinioSecretKey        string
+	OutboxArchiveAge      string
 }
 
 func LoadConfig() *Config {
@@ -231,6 +236,31 @@ func LoadConfig() *Config {
 		mongoURL = "mongodb://localhost:27017"
 	}
 
+	paymentGRPCAddr := os.Getenv("PAYMENT_GRPC_ADDR")
+	if paymentGRPCAddr == "" {
+		paymentGRPCAddr = "localhost:50056"
+	}
+
+	minioEndpoint := os.Getenv("MINIO_ENDPOINT")
+	if minioEndpoint == "" {
+		minioEndpoint = "localhost:9000"
+	}
+
+	minioAccessKey := os.Getenv("MINIO_ACCESS_KEY")
+	if minioAccessKey == "" {
+		minioAccessKey = "minioadmin"
+	}
+
+	minioSecretKey := os.Getenv("MINIO_SECRET_KEY")
+	if minioSecretKey == "" {
+		minioSecretKey = "minioadmin"
+	}
+
+	outboxArchiveAge := os.Getenv("OUTBOX_ARCHIVE_AGE")
+	if outboxArchiveAge == "" {
+		outboxArchiveAge = "24h"
+	}
+
 
 	return &Config{
 		DBDSN:                 dsn,
@@ -248,6 +278,7 @@ func LoadConfig() *Config {
 		WalletServiceURL:      walletServiceURL,
 		LedgerServiceURL:      ledgerServiceURL,
 		TransactionServiceURL: transactionServiceURL,
+		PaymentGRPCAddr:       paymentGRPCAddr,
 		AuthGRPCAddr:          authGRPCAddr,
 		PaymentServiceURL:     paymentServiceURL,
 		UserGRPCAddr:          userGRPCAddr,
@@ -268,5 +299,9 @@ func LoadConfig() *Config {
 		UserPort:              userPort,
 		LedgerPort:            ledgerPort,
 		TransactionPort:       transactionPort,
+		MinioEndpoint:         minioEndpoint,
+		MinioAccessKey:        minioAccessKey,
+		MinioSecretKey:        minioSecretKey,
+		OutboxArchiveAge:      outboxArchiveAge,
 	}
 }

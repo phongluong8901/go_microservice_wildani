@@ -119,7 +119,23 @@ Cách sử dụng trong project gowallet
 Lưu vết sự kiện hệ thống: Ghi nhận lại các mốc thời gian, trạng thái thay đổi của ví, hoặc các luồng sự kiện đi qua microservices để phục vụ cho việc tra soát khi xảy ra lỗi.
 Lịch sử hoạt động: Lưu trữ các hành động của người dùng hoặc các yêu cầu API quan trọng để phục vụ công tác bảo mật và kiểm tra (auditing).
 
+8. Object Storage MinIO for Outbox Archiving
+Khái niệm Object Storage MinIO for Outbox Archiving (Lưu trữ đối tượng MinIO để lưu trữ/sao lưu sự kiện Outbox) là một giải pháp kiến trúc dùng để dọn dẹp và lưu trữ lâu dài các message/sự kiện đã được xử lý xong từ bảng Outbox trong cơ sở dữ liệu quan hệ.
 
+Trong kiến trúc sử dụng Transactional Outbox Pattern, mọi sự kiện thay đổi dữ liệu (như nạp tiền, chuyển khoản, thanh toán) đều được ghi tạm vào bảng outbox_messages trong database (MySQL/PostgreSQL) cùng một transaction với nghiệp vụ.
+
+Sau khi background worker đọc sự kiện và đẩy thành công lên RabbitMQ, bản ghi trong bảng outbox sẽ bị đánh dấu là PROCESSED.
+
+Nếu để các bản ghi đã xử lý này tích tụ lâu ngày, bảng outbox sẽ phình to (hàng triệu, chục triệu dòng), làm giảm hiệu năng truy vấn của database và tốn tài nguyên ổ cứng.
+
+Tuy nhiên, việc xóa hẳn (hard delete) ngay lập tức các sự kiện cũ có thể làm mất dữ liệu lịch sử quan trọng phục vụ cho việc đối soát, audit sau này hoặc debug sự cố hệ thống.
+
+Tác dụng cụ thể trong dự án gowallet
+Lưu trữ phân vùng theo thời gian (Date-partitioned paths): Các sự kiện outbox sau khi đã hoàn thành chu kỳ xử lý sẽ được scheduler-service gom lại và đẩy (archive) lên MinIO (dịch vụ object storage tương thích chuẩn Amazon S3) theo cấu trúc thư mục rõ ràng, ví dụ:
+
+Giải phóng dung lượng Database: Sau khi đã đẩy dữ liệu sự kiện sang MinIO thành công, các dòng dữ liệu đó sẽ được an toàn xóa khỏi bảng outbox trong MySQL, giữ cho database luôn gọn gàng, nhẹ và tốc độ đọc/ghi cao.
+
+Kho lưu trữ lạnh (Cold Storage) để tra soát: MinIO đóng vai trò là kho lưu trữ lịch sử dài hạn với chi phí thấp. Khi cần kiểm tra lại lịch sử giao dịch hoặc sự kiện cũ từ vài tháng trước, hệ thống hoặc kỹ sư có thể truy xuất trực tiếp các file JSON trên MinIO mà không làm ảnh hưởng đến hiệu năng của database chính.
 
 # --- more
 1. Ledger system

@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
 
+	paymentGRPC "github.com/bashocode/gowallet/microservices/payment-service/internal/payment/grpc"
 	paymentHandler "github.com/bashocode/gowallet/microservices/payment-service/internal/payment/handler"
 	paymentPublisher "github.com/bashocode/gowallet/microservices/payment-service/internal/payment/publisher"
 	paymentRepository "github.com/bashocode/gowallet/microservices/payment-service/internal/payment/repository"
@@ -15,7 +17,9 @@ import (
 	"github.com/bashocode/gowallet/microservices/shared/database"
 	"github.com/bashocode/gowallet/microservices/shared/logger"
 	"github.com/bashocode/gowallet/microservices/shared/middleware"
+	pb "github.com/bashocode/gowallet/microservices/payment-service/proto/payment"
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -90,6 +94,27 @@ func main() {
 		}
 	}
 
+	// Start gRPC server
+	_, grpcPort, err := net.SplitHostPort(cfg.PaymentGRPCAddr)
+	if err != nil {
+		logger.Fatal(context.Background(), "Failed to split gRPC host port", "error", err)
+	}
+
+	lis, err := net.Listen("tcp", ":"+grpcPort)
+	if err != nil {
+		logger.Fatal(context.Background(), "Failed to listen gRPC port "+grpcPort, "error", err)
+	}
+
+	grpcServer := grpc.NewServer()
+	pb.RegisterPaymentServiceServer(grpcServer, paymentGRPC.NewPaymentGRPCServer(outboxRepo))
+
+	go func() {
+		logger.Log.Info("Payment gRPC Server running on port " + grpcPort + "...")
+		if err := grpcServer.Serve(lis); err != nil {
+			logger.Fatal(context.Background(), "Failed to serve gRPC", "error", err)
+		}
+	}()
+
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -105,5 +130,7 @@ func main() {
 	logger.Log.Info("Shutting down Payment Service...")
 	cancel()
 	worker.Stop()
+	grpcServer.GracefulStop()
 	logger.Log.Info("Payment Service stopped")
 }
+
