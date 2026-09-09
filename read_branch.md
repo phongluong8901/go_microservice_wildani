@@ -141,3 +141,9 @@ git checkout -b p23_paymentservice
 git add .
 git commit -m "change: first"
 git push -u origin p23_paymentservice
+
+# --- -
+git checkout -b p24_circuit_breaker_DLQ
+git add .
+git commit -m "change: first"
+git push -u origin p24_circuit_breaker_DLQ
