@@ -32,6 +32,7 @@ type Config struct {
 	StripeWebhookSecret   string
 	BaseURL               string
 	MonolithBaseURL       string
+	TransactionBaseURL    string
 	WebhookSecret         string
 	GatewayCallbackURL    string
 	GatewayPort           string
@@ -219,6 +220,11 @@ func LoadConfig() *Config {
 		gatewayCallbackURL = "http://localhost:8080"
 	}
 
+	transactionBaseURL := os.Getenv("TRANSACTION_BASE_URL")
+	if transactionBaseURL == "" {
+		transactionBaseURL = "http://localhost:8086"
+	}
+
 
 	return &Config{
 		DBDSN:                 dsn,
@@ -245,6 +251,7 @@ func LoadConfig() *Config {
 		StripeWebhookSecret:   stripeWebhookSecret,
 		BaseURL:               baseURL,
 		MonolithBaseURL:       monolithBaseURL,
+		TransactionBaseURL:    transactionBaseURL,
 		WebhookSecret:         webhookSecret,
 		GatewayCallbackURL:    gatewayCallbackURL,
 		GatewayPort:           gatewayPort,

@@ -1,8 +1,16 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 
 	customErr "github.com/bashocode/gowallet/monolith/internal/errors"
@@ -31,6 +39,7 @@ type transactionService struct {
 	userRepo   userRepo.UserRepository
 	walletRepo walletRepo.WalletRepository
 	ledgerRepo ledgerRepo.LedgerRepository
+	webhookSecret string
 }
 
 func NewTransactionService(
@@ -40,6 +49,7 @@ func NewTransactionService(
 	uRepo userRepo.UserRepository,
 	wRepo walletRepo.WalletRepository,
 	lRepo ledgerRepo.LedgerRepository,
+	webhookSecret string,
 ) TransactionService {
 	return &transactionService{
 		db:         db,
@@ -48,6 +58,7 @@ func NewTransactionService(
 		userRepo:   uRepo,
 		walletRepo: wRepo,
 		ledgerRepo: lRepo,
+		webhookSecret: webhookSecret,
 	}
 }
 
@@ -346,6 +357,10 @@ func (s *transactionService) ReceiveExternalTransfer(ctx context.Context, req mo
 		}()
 	}
 
+	if req.CallbackURL != "" {
+		go s.sendTransferCallback(context.Background(), req)
+	}
+
 	return &model.ExternalTransferStatus{
 		TransferID:     req.TransferID,
 		Status:         "success",
@@ -367,4 +382,54 @@ func (s *transactionService) GetExternalTransferStatus(ctx context.Context, tran
 		Status:         transaction.Status,
 		IdempotencyKey: transaction.IdempotencyKey,
 	}, nil
+}
+
+
+func (s *transactionService) sendTransferCallback(ctx context.Context, req model.ExternalTransferRequest) {
+	callbackPayload := map[string]any{
+		"transfer_id":     req.TransferID,
+		"status":          "success",
+		"receiver_email":  req.ReceiverEmail,
+		"amount":          req.Amount.String(),
+		"idempotency_key": req.IdempotencyKey,
+	}
+
+	body, err := json.Marshal(callbackPayload)
+	if err != nil {
+		slog.Error("failed to marshal callback payload", "transfer_id", req.TransferID, "error", err)
+		return
+	}
+
+	signature := generateHMAC(body, s.webhookSecret)
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, req.CallbackURL, bytes.NewBuffer(body))
+	if err != nil {
+		slog.Error("failed to create callback request", "transfer_id", req.TransferID, "error", err)
+		return
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-API-Key", s.webhookSecret)
+	httpReq.Header.Set("X-Webhook-Signature", signature)
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		slog.Error("failed to send callback", "transfer_id", req.TransferID, "error", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		slog.Error("callback returned error", "transfer_id", req.TransferID, "status", resp.StatusCode, "body", string(bodyBytes))
+		return
+	}
+
+	slog.Info("callback sent successfully", "transfer_id", req.TransferID)
+}
+
+func generateHMAC(payload []byte, secret string) string {
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write(payload)
+	return hex.EncodeToString(h.Sum(nil))
 }
