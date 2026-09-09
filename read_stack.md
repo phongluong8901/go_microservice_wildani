@@ -89,6 +89,22 @@ Chống mất mát tin nhắn (At-least-once delivery): Do các message được
 
 Tách biệt luồng xử lý (Decoupling): Giúp API endpoint xử lý ví phản hồi nhanh hơn, không bị nghẽn cổ chai hay phụ thuộc vào độ trễ của mạng kết nối tới Message Broker bên ngoài trong lúc người dùng đang thực hiện request.
 
+6. RabbitMQ và Event Publishing
+RabbitMQ: Là một Message Broker (phần mềm trung gian quản lý hàng đợi tin nhắn) cho phép các ứng dụng hoặc microservices trao đổi thông tin với nhau một cách bất đồng bộ (asynchronous) thông qua các hàng đợi (queues) và luồng trao đổi (exchanges).
+
+Event Publishing (Phát sự kiện): Là hành động một service (Publisher) phát đi một thông báo dạng sự kiện (ví dụ: TransactionCreated, WalletUpdated) lên Message Broker ngay sau khi một hành động nghiệp vụ hoàn tất, thay vì phải gọi trực tiếp sang các service khác.
+
+Vai trò của RabbitMQ & Event Publishing trong project gowallet
+Tách biệt hệ thống (Decoupling): Giúp transaction-service hoặc wallet-service không bị phụ thuộc chặt chẽ (tightly coupled) vào các service phụ trợ như thông báo, lịch sử, hoặc xử lý hóa đơn. Service chỉ cần thực hiện xong nhiệm vụ của mình và bắn event lên RabbitMQ.
+
+Xử lý bất đồng bộ và tăng hiệu năng: Các tác vụ nặng hoặc không cần phản hồi tức thì (như gửi email thông báo, ghi log kiểm toán phức tạp) được đẩy vào queue để các worker service xử lý ngầm, giúp API phản hồi nhanh hơn cho người dùng.
+
+Đảm bảo tính nhất quán (Eventual Consistency): Khi một giao dịch tài chính xảy ra, event phát đi đảm bảo rằng các service liên quan (như cập nhật số dư, ghi sổ cái ledger) đều nhận được dữ liệu và tự đồng bộ trạng thái của mình theo.
+
+Tích hợp với Outbox Pattern: Làm cầu nối để đẩy các message được lưu tạm trong bảng outbox của database lên hệ thống message queue một cách an toàn, giải quyết triệt để vấn đề mất dữ liệu khi mạng hoặc broker gặp sự cố gián đoạn.
+
+Khả năng chịu lỗi (Fault Tolerance): Nếu một microservice tiêu thụ (consumer) bị sập nguồn, RabbitMQ sẽ giữ lại các message trong queue và tiếp tục gửi lại khi service đó hồi phục, ngăn ngừa việc thất thoát giao dịch.
+
 # --- more
 1. Ledger system
 
