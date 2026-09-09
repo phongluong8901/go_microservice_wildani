@@ -113,11 +113,13 @@ func main() {
 	}
 	defer ledgerConn.Close()
 
+	dlqPublisher := dlq.NewNoOpPublisher()
+
 	ledgerClient := pbLedger.NewLedgerServiceClient(ledgerConn)
 
 	// Initialize layers
 	txRepo := transactionRepository.NewMySQLTransactionRepository(db)
-	txSvc := transactionService.NewTransactionService(db, txRepo, userClient, walletClient, ledgerClient)
+	txSvc := transactionService.NewTransactionService(db, txRepo, userClient, walletClient, ledgerClient, dlqPublisher)
 	txHandler := transactionHandler.NewTransactionHandler(txSvc)
 
 	// =========================================================
