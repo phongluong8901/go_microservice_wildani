@@ -202,3 +202,70 @@ User: Người dùng thực hiện request vào hệ thống.
 Role: Nhóm chức vụ hoặc tập hợp các quyền (Ví dụ: admin toàn quyền, user chỉ được xem và quản lý ví cá nhân).
 
 Permission: Quyền hạn chi tiết trên từng tài nguyên (Ví dụ: wallet:read, wallet:transfer).
+
+12. Circuit Breaker (Mạch ngắt) và DLQ (Dead Letter Queue - Hàng đợi thư chết)
+Circuit Breaker (Mạch ngắt) và DLQ (Dead Letter Queue - Hàng đợi thư chết) là hai mẫu thiết kế (design patterns) cực kỳ quan trọng trong kiến trúc microservices nhằm đảm bảo tính chịu lỗi (fault tolerance) và độ tin cậy của hệ thống.
+---
+Circuit Breaker trong Go
+
+Khái niệm: Là một lớp bảo vệ nằm giữa các microservice (ví dụ khi Gateway hoặc Ledger gọi sang Wallet service). Nó hoạt động giống như cầu dao điện tự động ngắt mạch khi phát hiện lỗi hệ thống liên tiếp.
+
+Cơ chế hoạt động (3 trạng thái):
+
+Closed (Đóng): Hoạt động bình thường, các request được gọi đi qua.
+
+Open (Mở): Khi số lượng lỗi vượt ngưỡng cho phép, Circuit Breaker ngắt kết nối ngay lập tức, trả về lỗi giả lập (hoặc fallback) mà không gọi sang service đang chết, giúp service đích có thời gian hồi phục và tránh sập dây chuyền (cascading failure).
+
+Half-Open (Nửa mở): Sau một khoảng thời gian, nó cho phép một vài request thử nghiệm đi qua. Nếu thành công, chuyển về trạng thái Closed; nếu tiếp tục lỗi, quay lại trạng thái Open.
+
+Thư viện phổ biến trong Go: sony/gobreaker hoặc afex/hystrix-go.
+
+DLQ (Dead Letter Queue) trong Go
+
+Khái niệm: Là một hàng đợi phụ (queue/topic phụ) trong hệ thống message broker (như RabbitMQ hoặc Kafka mà bạn đang dùng) dùng để lưu trữ các thông điệp (messages) không thể xử lý thành công sau một số lần thử lại (retry) nhất định.
+---
+Lý do cần DLQ:
+
+Tránh hiện tượng poison message (thông điệp lỗi làm consumer bị lặp vô hạn hoặc crash liên tục).
+
+Giúp giữ lại dữ liệu lỗi để lập trình viên phân tích, debug hoặc xử lý thủ công (replay) sau khi đã sửa lỗi code mà không làm gián đoạn luồng xử lý chính.
+
+Cách áp dụng: Khi cấu hình RabbitMQ/Kafka consumer trong Go, bạn thiết lập chính sách x-dead-letter-exchange hoặc cơ chế retry. Nếu bản tin xử lý lỗi vượt quá max_retries, broker sẽ tự động chuyển bản tin đó sang hàng đợi DLQ.
+
+Trong hệ thống microservices tài chính ví điện tử (gowallet), việc tích hợp Circuit Breaker và DLQ (Dead Letter Queue) đóng vai trò sống còn để đảm bảo hệ thống không bị sập dây chuyền và không bị mất mát dữ liệu giao dịch.
+
+Vai trò của Circuit Breaker trong hệ thống
+---
+Chống sập dây chuyền (Cascading Failures): Khi một service phụ trợ (ví dụ: Ledger Service hoặc Wallet Service) gặp sự cố hoặc quá tải, Circuit Breaker nằm ở các service gọi đến (như Transaction Service hoặc API Gateway) sẽ tự động ngắt kết nối, ngăn chặn việc tiếp tục bắn request dồn dập gây cạn kiệt tài nguyên (thread/connection pool).
+
+Cơ chế phản hồi nhanh (Fail Fast): Thay vì bắt client hoặc service gọi chờ timeout dài gây nghẽn luồng, mạch mở giúp trả về lỗi ngay lập tức để hệ thống xử lý fallback hoặc hiển thị thông báo gián đoạn tạm thời.
+
+Tạo khoảng lặng hồi phục: Cho phép service đích (bị lỗi) có thời gian tự phục hồi ổn định mà không bị áp lực từ lượng request khổng lồ đổ vào liên tục.
+
+Vai trò của DLQ (Dead Letter Queue) trong hệ thống
+
+Xử lý sự cố tin nhắn (Poison Messages): Trong kiến trúc hướng sự kiện (Event-driven qua RabbitMQ), khi một bản tin (message) xử lý thất bại do lỗi định dạng hoặc lỗi logic nghiệp vụ, cơ chế retry sẽ thử lại. Nếu vượt ngưỡng, tin nhắn sẽ bị loại bỏ khỏi hàng đợi chính để tránh làm đơ (block) hệ thống tiêu thụ (consumer).
+
+Bảo vệ dữ liệu tài chính: Thay vì làm mất bản tin (gây lệch số dư hoặc mất vết giao dịch), hệ thống đẩy bản tin lỗi đó vào Dead Letter Queue.
+
+Hỗ trợ kiểm tra và khôi phục (Replay): Giúp đội ngũ kỹ thuật giữ lại toàn bộ các giao dịch/sự kiện thất bại trong DLQ để phân tích log, sửa lỗi code, sau đó bơm ngược (replay) các bản tin đó trở lại hệ thống xử lý mà không sợ thất lạc dữ liệu.
+
+
+13. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
