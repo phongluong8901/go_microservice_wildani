@@ -14,6 +14,7 @@ import (
 	transactionHandler "github.com/bashocode/gowallet/microservices/transaction-service/internal/transaction/handler"
 	transactionRepository "github.com/bashocode/gowallet/microservices/transaction-service/internal/transaction/repository"
 	transactionService "github.com/bashocode/gowallet/microservices/transaction-service/internal/transaction/service"
+	transferRepository "github.com/bashocode/gowallet/microservices/transaction-service/internal/transaction/repository"
 	"github.com/bashocode/gowallet/microservices/transaction-service/internal/transaction/worker"
 	pb "github.com/bashocode/gowallet/microservices/transaction-service/proto/transaction"
 	pbUser "github.com/bashocode/gowallet/microservices/user-service/proto/user"
@@ -130,7 +131,9 @@ func main() {
 
 	// Initialize layers
 	txRepo := transactionRepository.NewMySQLTransactionRepository(db)
-	txSvc := transactionService.NewTransactionService(db, txRepo, userClient, walletClient, ledgerClient, dlqPublisher)
+	outboundTransferRepo := transferRepository.NewMySQLOutboundTransferRepository(db)
+	transferOutboxRepo := transferRepository.NewMySQLTransferOutboxRepository(db)
+	txSvc := transactionService.NewTransactionService(db, txRepo, outboundTransferRepo, transferOutboxRepo, userClient, walletClient, ledgerClient, dlqPublisher, cfg.MonolithBaseURL, cfg.WebhookSecret)
 	txHandler := transactionHandler.NewTransactionHandler(txSvc)
 
 	externalHandler := transactionHandler.NewTransferHandler(txSvc, cfg.WebhookSecret, cfg.MonolithBaseURL)
@@ -181,6 +184,7 @@ func main() {
 			protected.GET("/transactions/history", txHandler.GetHistory)
 
 			protected.POST("/transactions/inquiry/external", externalHandler.InquiryExternal)
+			protected.POST("/transactions/transfers/external", externalHandler.CreateExternalTransfer)
 		}
 	}
 

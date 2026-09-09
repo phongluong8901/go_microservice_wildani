@@ -117,6 +117,7 @@ migrate create -ext sql -dir ledger-service/db/migrations -seq create_table_ledg
 -
 migrate create -ext sql -dir transaction-service/db/migrations -seq add_transaction_table
 migrate create -ext sql -dir transaction-service/db/migrations -seq create_outbox_table
+migrate create -ext sql -dir transaction-service/db/migrations -seq alter-talbe-transaction-and-outbox-events
 
 -- payment-service
 -
