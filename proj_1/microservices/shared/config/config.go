@@ -31,6 +31,9 @@ type Config struct {
 	AuthGRPCAddr          string
 	StripeWebhookSecret   string
 	BaseURL               string
+	MonolithBaseURL       string
+	WebhookSecret         string
+	GatewayCallbackURL    string
 	GatewayPort           string
 	AuthPort              string
 	WalletPort            string
@@ -201,6 +204,20 @@ func LoadConfig() *Config {
 	}
 	rabbitmqURL := "amqp://" + rabbitmqUser + ":" + rabbitmqPassword + "@" + rabbitmqHost + ":" + rabbitmqPort + "/"
 
+	monolithBaseURL := os.Getenv("MONOLITH_BASE_URL")
+	if monolithBaseURL == "" {
+		monolithBaseURL = "http://localhost:8080"
+	}
+
+	webhookSecret := os.Getenv("WEBHOOK_SECRET")
+	if webhookSecret == "" {
+		webhookSecret = "gowallet-webhook-secret-change-me"
+	}
+
+	gatewayCallbackURL := os.Getenv("GATEWAY_CALLBACK_URL")
+	if gatewayCallbackURL == "" {
+		gatewayCallbackURL = "http://localhost:8080"
+	}
 
 
 	return &Config{
@@ -227,6 +244,9 @@ func LoadConfig() *Config {
 		StripeSecretKey:       stripeSecretKey,
 		StripeWebhookSecret:   stripeWebhookSecret,
 		BaseURL:               baseURL,
+		MonolithBaseURL:       monolithBaseURL,
+		WebhookSecret:         webhookSecret,
+		GatewayCallbackURL:    gatewayCallbackURL,
 		GatewayPort:           gatewayPort,
 		AuthPort:              authPort,
 		WalletPort:            walletPort,
