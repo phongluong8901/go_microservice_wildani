@@ -9,4 +9,5 @@ use (
 	./transaction-service
 	./user-service
 	./wallet-service
+	./scheduler-service
 )

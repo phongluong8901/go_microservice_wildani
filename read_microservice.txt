@@ -71,6 +71,11 @@ go mod init github.com/bashocode/gowallet/microservices/transaction-service
 cd payment-service
 go mod init github.com/bashocode/gowallet/microservices/payment-service
 
+-- scheduler
+cd scheduler-service
+go mod init github.com/bashocode/gowallet/microservices/scheduler-service
+
+
 --- run
 
 -- auth
@@ -114,6 +119,7 @@ migrate create -ext sql -dir transaction-service/db/migrations -seq add_transact
 migrate create -ext sql -dir payment-service/db/migrations -seq create_payments_table
 
 
+
 - generate tables service
 make migrateup-auth-service
 make migrateup-user-service
@@ -150,6 +156,12 @@ protoc --go_out=. --go-grpc_out=. proto/transaction/transaction.proto
 
 - copy tu proto -> transaction-service
 cp -r github.com/bashocode/gowallet/microservices/transaction-service/proto/transaction/ transaction-service/proto/transaction/
+
+- generate file auth
+protoc --go_out=. --go-grpc_out=. proto/auth/auth.proto
+
+- copy tu proto -> auth-service
+cp -r github.com/bashocode/gowallet/microservices/auth-service/proto/auth/ auth-service/proto/auth/
 
 
 
