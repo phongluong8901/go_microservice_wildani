@@ -165,3 +165,9 @@ git checkout -b p26_scheduler_service
 git add .
 git commit -m "change: first"
 git push -u origin p26_scheduler_service
+
+# --- -
+git checkout -b p27_outbox_pattern_SAGA
+git add .
+git commit -m "change: first"
+git push -u origin p27_outbox_pattern_SAGA
