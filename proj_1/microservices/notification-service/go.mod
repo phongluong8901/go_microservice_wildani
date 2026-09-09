@@ -2,6 +2,8 @@ module github.com/bashocode/gowallet/microservices/notification-service
 
 go 1.26.4
 
+replace github.com/bashocode/gowallet/microservices/shared => ../shared
+
 require (
 	github.com/bashocode/gowallet/microservices/shared v0.0.0-20260802100100-622dd0e3b37b
 	github.com/bashocode/gowallet/microservices/user-service v0.0.0-20260802100100-622dd0e3b37b

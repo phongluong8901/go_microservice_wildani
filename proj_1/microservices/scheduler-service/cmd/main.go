@@ -1,7 +1,7 @@
-
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,9 +11,9 @@ import (
 	"github.com/bashocode/gowallet/microservices/shared/config"
 	"github.com/bashocode/gowallet/microservices/shared/logger"
 	txPb "github.com/bashocode/gowallet/microservices/transaction-service/proto/transaction"
-	walletPb "github.com/bashocode/gowallet/microservices/wallet-service/proto/wallet"
 	userPb "github.com/bashocode/gowallet/microservices/user-service/proto/user"
-    "google.golang.org/grpc"
+	walletPb "github.com/bashocode/gowallet/microservices/wallet-service/proto/wallet"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -42,7 +42,7 @@ func main() {
 		}`),
 	)
 	if err != nil {
-		logger.Fatal(nil, "Could not connect to Auth gRPC", "error", err)
+		logger.Fatal(context.Background(), "Could not connect to Auth gRPC", "error", err)
 	}
 	defer authConn.Close()
 	authClient := authPb.NewAuthServiceClient(authConn)
@@ -66,7 +66,7 @@ func main() {
 		}`),
 	)
 	if err != nil {
-		logger.Fatal(nil, "Could not connect to Wallet gRPC", "error", err)
+		logger.Fatal(context.Background(), "Could not connect to Wallet gRPC", "error", err)
 	}
 	defer walletConn.Close()
 	walletClient := walletPb.NewWalletServiceClient(walletConn)
@@ -90,7 +90,7 @@ func main() {
 		}`),
 	)
 	if err != nil {
-		logger.Fatal(nil, "Could not connect to Transaction gRPC", "error", err)
+		logger.Fatal(context.Background(), "Could not connect to Transaction gRPC", "error", err)
 	}
 	defer txConn.Close()
 	txClient := txPb.NewTransactionServiceClient(txConn)
@@ -114,7 +114,7 @@ func main() {
 		}`),
 	)
 	if err != nil {
-		logger.Fatal(nil, "Could not connect to User gRPC", "error", err)
+		logger.Fatal(context.Background(), "Could not connect to User gRPC", "error", err)
 	}
 	defer userConn.Close()
 	userClient := userPb.NewUserServiceClient(userConn)
