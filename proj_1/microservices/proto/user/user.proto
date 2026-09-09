@@ -9,6 +9,7 @@ service UserService {
   rpc GetUserByID (GetUserRequest) returns (UserResponse);
   rpc GetUserByEmail (GetUserByEmailRequest) returns (UserResponse);
   rpc CreateUser (CreateUserRequest) returns (UserResponse);
+  rpc CleanupExpiredOTPs (CleanupRequest) returns (CleanupResponse);
 }
 
 message GetUserRequest {
@@ -36,4 +37,11 @@ message UserResponse {
   string password_hash = 4; // Needed by Auth Service for login verification
   string role = 5;          // Needed by Auth Service to generate JWT with role
    bool is_verified = 6;
+}
+
+
+message CleanupRequest {}
+
+message CleanupResponse {
+  int32 deleted_count = 1;
 }

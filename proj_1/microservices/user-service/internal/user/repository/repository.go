@@ -25,6 +25,7 @@ type UserRepository interface {
 	UpdatePassword(ctx context.Context, id string, passwordHash string) error
 	GetByOAuth(ctx context.Context, provider, oauthID string) (*model.User, error)
 	GetAll(ctx context.Context, params model.PaginationParams) ([]*model.User, int64, error)
+
 }
 
 type mysqlUserRepository struct {
@@ -207,6 +208,7 @@ type OTPRepository interface {
 	GetActiveOTPTx(ctx context.Context, tx *sql.Tx, userID string, code string, otpType string) (*model.OTP, error)
 	MarkAsUsed(ctx context.Context, id string) error
 	MarkAsUsedTx(ctx context.Context, tx *sql.Tx, id string) error
+	DeleteExpired(ctx context.Context) (int64, error)
 }
 
 type mysqlOTPRepository struct {
@@ -265,4 +267,14 @@ func (r *mysqlOTPRepository) MarkAsUsedTx(ctx context.Context, tx *sql.Tx, id st
 	query := `UPDATE otp_codes SET used = 1 WHERE id = ?`
 	_, err := tx.ExecContext(ctx, query, id)
 	return err
+}
+
+
+func (r *mysqlOTPRepository) DeleteExpired(ctx context.Context) (int64, error) {
+	query := `DELETE FROM otp_codes WHERE expires_at <= NOW()`
+	res, err := r.db.ExecContext(ctx, query)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }

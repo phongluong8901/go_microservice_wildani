@@ -269,6 +269,86 @@ func (x *UserResponse) GetIsVerified() bool {
 	return false
 }
 
+type CleanupRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CleanupRequest) Reset() {
+	*x = CleanupRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CleanupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CleanupRequest) ProtoMessage() {}
+
+func (x *CleanupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CleanupRequest.ProtoReflect.Descriptor instead.
+func (*CleanupRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{4}
+}
+
+type CleanupResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DeletedCount  int32                  `protobuf:"varint,1,opt,name=deleted_count,json=deletedCount,proto3" json:"deleted_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CleanupResponse) Reset() {
+	*x = CleanupResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CleanupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CleanupResponse) ProtoMessage() {}
+
+func (x *CleanupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CleanupResponse.ProtoReflect.Descriptor instead.
+func (*CleanupResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CleanupResponse) GetDeletedCount() int32 {
+	if x != nil {
+		return x.DeletedCount
+	}
+	return 0
+}
+
 var File_proto_user_user_proto protoreflect.FileDescriptor
 
 const file_proto_user_user_proto_rawDesc = "" +
@@ -292,12 +372,16 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\rpassword_hash\x18\x04 \x01(\tR\fpasswordHash\x12\x12\n" +
 	"\x04role\x18\x05 \x01(\tR\x04role\x12\x1f\n" +
 	"\vis_verified\x18\x06 \x01(\bR\n" +
-	"isVerified2\xc4\x01\n" +
+	"isVerified\"\x10\n" +
+	"\x0eCleanupRequest\"6\n" +
+	"\x0fCleanupResponse\x12#\n" +
+	"\rdeleted_count\x18\x01 \x01(\x05R\fdeletedCount2\x87\x02\n" +
 	"\vUserService\x127\n" +
 	"\vGetUserByID\x12\x14.user.GetUserRequest\x1a\x12.user.UserResponse\x12A\n" +
 	"\x0eGetUserByEmail\x12\x1b.user.GetUserByEmailRequest\x1a\x12.user.UserResponse\x129\n" +
 	"\n" +
-	"CreateUser\x12\x17.user.CreateUserRequest\x1a\x12.user.UserResponseBEZCgithub.com/bashocode/gowallet/microservices/user-service/proto/userb\x06proto3"
+	"CreateUser\x12\x17.user.CreateUserRequest\x1a\x12.user.UserResponse\x12A\n" +
+	"\x12CleanupExpiredOTPs\x12\x14.user.CleanupRequest\x1a\x15.user.CleanupResponseBEZCgithub.com/bashocode/gowallet/microservices/user-service/proto/userb\x06proto3"
 
 var (
 	file_proto_user_user_proto_rawDescOnce sync.Once
@@ -311,22 +395,26 @@ func file_proto_user_user_proto_rawDescGZIP() []byte {
 	return file_proto_user_user_proto_rawDescData
 }
 
-var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_proto_user_user_proto_goTypes = []any{
 	(*GetUserRequest)(nil),        // 0: user.GetUserRequest
 	(*GetUserByEmailRequest)(nil), // 1: user.GetUserByEmailRequest
 	(*CreateUserRequest)(nil),     // 2: user.CreateUserRequest
 	(*UserResponse)(nil),          // 3: user.UserResponse
+	(*CleanupRequest)(nil),        // 4: user.CleanupRequest
+	(*CleanupResponse)(nil),       // 5: user.CleanupResponse
 }
 var file_proto_user_user_proto_depIdxs = []int32{
 	0, // 0: user.UserService.GetUserByID:input_type -> user.GetUserRequest
 	1, // 1: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
 	2, // 2: user.UserService.CreateUser:input_type -> user.CreateUserRequest
-	3, // 3: user.UserService.GetUserByID:output_type -> user.UserResponse
-	3, // 4: user.UserService.GetUserByEmail:output_type -> user.UserResponse
-	3, // 5: user.UserService.CreateUser:output_type -> user.UserResponse
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
+	4, // 3: user.UserService.CleanupExpiredOTPs:input_type -> user.CleanupRequest
+	3, // 4: user.UserService.GetUserByID:output_type -> user.UserResponse
+	3, // 5: user.UserService.GetUserByEmail:output_type -> user.UserResponse
+	3, // 6: user.UserService.CreateUser:output_type -> user.UserResponse
+	5, // 7: user.UserService.CleanupExpiredOTPs:output_type -> user.CleanupResponse
+	4, // [4:8] is the sub-list for method output_type
+	0, // [0:4] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -343,7 +431,7 @@ func file_proto_user_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_user_user_proto_rawDesc), len(file_proto_user_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
