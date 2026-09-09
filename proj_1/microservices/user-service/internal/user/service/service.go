@@ -31,8 +31,6 @@ type UserService interface {
 	RequestPasswordReset(ctx context.Context, email string) error
 	VerifyPasswordReset(ctx context.Context, email string, code string) (string, error)
 	ResetPassword(ctx context.Context, id string, newPassword string) error
-	GetGoogleLoginURL(ctx context.Context) (string, error)
-	HandleGoogleCallback(ctx context.Context, code string, state string) (*model.LoginResponse, error)
 	GetAllUsers(ctx context.Context, params model.PaginationParams) ([]*model.User, *model.PaginationMeta, error)
 }
 

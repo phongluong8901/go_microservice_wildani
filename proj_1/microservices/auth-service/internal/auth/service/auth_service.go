@@ -39,7 +39,7 @@ type authService struct {
 	walletClient pbWallet.WalletServiceClient
 }
 
-func NewAuthService(rdb *redis.Client, rtRepo repository.RefreshTokenRepository, userClient pb.UserServiceClient, walletClient pbWallet.WalletServiceClien) AuthService {
+func NewAuthService(rdb *redis.Client, rtRepo repository.RefreshTokenRepository, userClient pb.UserServiceClient, walletClient pbWallet.WalletServiceClient) AuthService {
 	return &authService{
 		rdb:          rdb,
 		rtRepo:       rtRepo,

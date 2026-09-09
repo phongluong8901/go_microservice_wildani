@@ -1,6 +1,6 @@
 module github.com/bashocode/gowallet/microservices/auth-service
 
-go 1.25.0
+go 1.26.4
 
 require (
 	github.com/bashocode/gowallet/microservices/shared v0.0.0-20260802100100-622dd0e3b37b
@@ -9,10 +9,12 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/redis/go-redis/v9 v9.22.0
 	golang.org/x/crypto v0.56.0
+	golang.org/x/oauth2 v0.36.0
 	google.golang.org/grpc v1.83.2
 )
 
 require (
+	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

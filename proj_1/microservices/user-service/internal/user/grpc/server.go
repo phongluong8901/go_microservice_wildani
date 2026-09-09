@@ -2,11 +2,12 @@ package grpc
 
 import (
 	"context"
-	"uuid"
+	"github.com/google/uuid"
 
 	"github.com/bashocode/gowallet/microservices/shared/logger"
 	"github.com/bashocode/gowallet/microservices/user-service/internal/user/repository"
 	pb "github.com/bashocode/gowallet/microservices/user-service/proto/user"
+	"github.com/bashocode/gowallet/microservices/user-service/internal/user/model"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

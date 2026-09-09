@@ -23,7 +23,7 @@ RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /app
 # COPY --from=builder /service .
-COPY ledger-service/bin/ledger-service-linux ./service/service .
+COPY ledger-service/bin/ledger-service-linux ./service
 
 EXPOSE 8085 50054
 CMD ["./service"]

@@ -1,12 +1,12 @@
-go 1.25.0
+go 1.26.4
 
 use (
-	./shared
 	./api-gateway
 	./auth-service
+	./ledger-service
+	./payment-service
+	./shared
+	./transaction-service
 	./user-service
 	./wallet-service
-	./ledger-service
-	./transaction-service
-	./payment-service
 )

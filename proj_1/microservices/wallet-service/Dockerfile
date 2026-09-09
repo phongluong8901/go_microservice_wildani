@@ -23,7 +23,7 @@ RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /app
 # COPY --from=builder /service .
-COPY wallet-service/bin/wallet-service-linux ./serviceservice .
+COPY wallet-service/bin/wallet-service-linux ./service
 
 EXPOSE 8082 50053
 CMD ["./service"]

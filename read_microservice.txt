@@ -33,6 +33,7 @@ cd microservices
 -- go mod tidy toan bo
 cd microservices
 
+- windwow
 Get-ChildItem -Recurse -Filter "go.mod" | ForEach-Object { 
     Write-Host "Tidy cho: $_.DirectoryName"
     Push-Location $_.DirectoryName
@@ -40,6 +41,8 @@ Get-ChildItem -Recurse -Filter "go.mod" | ForEach-Object {
     Pop-Location 
 }
 
+- linux
+find . -name "go.mod" -execdir go mod tidy \;
 
 
 -- auth

@@ -1,6 +1,6 @@
 module github.com/bashocode/gowallet/microservices/ledger-service
 
-go 1.25.0
+go 1.26.4
 
 require (
 	github.com/bashocode/gowallet/microservices/shared v0.0.0-20260802100100-622dd0e3b37b
