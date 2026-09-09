@@ -147,3 +147,9 @@ git checkout -b p24_circuit_breaker_DLQ
 git add .
 git commit -m "change: first"
 git push -u origin p24_circuit_breaker_DLQ
+
+# --- -
+git checkout -b main
+git add .
+git commit -m "change: first"
+git push -u origin main
