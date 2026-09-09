@@ -123,6 +123,7 @@ migrate create -ext sql -dir transaction-service/db/migrations -seq add_sender_u
 -- payment-service
 -
 migrate create -ext sql -dir payment-service/db/migrations -seq create_payments_table
+migrate create -ext sql -dir payment-service/db/migrations -seq create_payment_outbox_events
 
 
 
