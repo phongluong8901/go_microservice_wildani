@@ -318,7 +318,7 @@ func (s *transactionService) ReceiveExternalTransfer(ctx context.Context, req mo
 		Amount:           req.Amount,
 		Description:      "External transfer from GoWallet",
 		IdempotencyKey:   req.IdempotencyKey,
-		Status:           "settled",
+		Status:           "success",
 	}
 	if err := s.txRepo.CreateTx(ctx, tx, transaction); err != nil {
 		return nil, customErr.ErrInternalServer
@@ -348,7 +348,7 @@ func (s *transactionService) ReceiveExternalTransfer(ctx context.Context, req mo
 
 	return &model.ExternalTransferStatus{
 		TransferID:     req.TransferID,
-		Status:         "settled",
+		Status:         "success",
 		IdempotencyKey: req.IdempotencyKey,
 	}, nil
 }
