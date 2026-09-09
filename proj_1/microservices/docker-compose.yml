@@ -61,6 +61,8 @@ services:
             LEDGER_SERVICE_URL: ${LEDGER_SERVICE_URL}
             TRANSACTION_SERVICE_URL: ${TRANSACTION_SERVICE_URL}
             PAYMENT_SERVICE_URL: ${PAYMENT_SERVICE_URL}
+            REDIS_HOST: ${REDIS_HOST}
+            REDIS_PORT: ${REDIS_PORT}
         depends_on:
             auth-service:
                 condition: service_started
@@ -267,14 +269,11 @@ services:
             context: .
             dockerfile: scheduler-service/Dockerfile
         container_name: gowallet-scheduler-service-ms
-        ports:
-            - "${SCHEDULER_PORT}:${SCHEDULER_PORT}"
         environment:
             - DB_USER=${DB_USER}
             - DB_PASSWORD=${DB_PASSWORD}
             - DB_HOST=${DB_HOST}
             - DB_PORT=${DB_PORT}
-            - DB_NAME=${DB_NAME_SCHEDULER}
             - REDIS_HOST=${REDIS_HOST}
             - REDIS_PORT=${REDIS_PORT}
             - AUTH_GRPC_ADDR=${AUTH_GRPC_ADDR}
