@@ -8,5 +8,5 @@ use (
 	./wallet-service
 	./ledger-service
 	./transaction-service
+	./payment-service
 )
-

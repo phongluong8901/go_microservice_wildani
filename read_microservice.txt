@@ -64,6 +64,9 @@ go mod init github.com/bashocode/gowallet/microservices/ledger-service
 cd transaction-service
 go mod init github.com/bashocode/gowallet/microservices/transaction-service
 
+-- payment
+cd payment-service
+go mod init github.com/bashocode/gowallet/microservices/payment-service
 
 --- run
 
@@ -103,6 +106,10 @@ migrate create -ext sql -dir ledger-service/db/migrations -seq create_table_ledg
 -
 migrate create -ext sql -dir transaction-service/db/migrations -seq add_transaction_table
 
+-- payment-service
+-
+migrate create -ext sql -dir payment-service/db/migrations -seq create_payments_table
+
 
 - generate tables service
 make migrateup-auth-service
@@ -131,6 +138,13 @@ protoc --go_out=. --go-grpc_out=. proto/ledger/ledger.proto
 
 - copy tu proto -> ledger-service
 cp -r github.com/bashocode/gowallet/microservices/ledger-service/proto/ledger/ ledger-service/proto/ledger/
+
+- generate file transaction
+protoc --go_out=. --go-grpc_out=. proto/transaction/transaction.proto
+
+- copy tu proto -> transaction-service
+cp -r github.com/bashocode/gowallet/microservices/transaction-service/proto/transaction/ transaction-service/proto/transaction/
+
 
 
 --- check cac api nao dung grpc
