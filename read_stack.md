@@ -59,6 +59,36 @@ Xử lý lỗi phân tán (Failure Recovery): Nếu hệ thống ghi sổ cái (
 
 Giải phóng ràng buộc Database: Cho phép các microservices hoạt động độc lập, dùng database riêng mà vẫn phối hợp chặt chẽ được với nhau trong các nghiệp vụ phức tạp.
 
+5. Outbox Pattern
+Transactional Outbox Pattern là một design pattern trong kiến trúc phần mềm (đặc biệt phổ biến trong Microservices) dùng để giải quyết bài toán: Làm thế nào để lưu dữ liệu vào Database chính VÀ gửi message/event đi (qua Kafka, RabbitMQ, v.v.) một cách đáng tin cậy, đảm bảo tính nhất quán (Atomicity)
+
+Vấn đề gặp phải nếu không dùng Outbox Pattern:Khi hệ thống cần thực hiện 2 hành động cùng lúc:Lưu transaction vào Database của dịch vụ (ví dụ: trừ tiền ví, tạo đơn hàng).Phát một message/event lên Message Broker (ví dụ: thông báo WalletDeducted để các service khác xử lý).Nếu viết code tuần tự như sau:Go// Cách làm dễ bị lỗi
+db.Save(walletTransaction) // 1. Lưu DB thành công
+messageBroker.Publish("wallet.deducted", event) // 2. LỖI MẠNG / BROKER SẬP!
+Rủi ro: Bước 1 thành công nhưng bước 2 thất bại (do sập mạng, lỗi broker), dữ liệu trong DB đã đổi nhưng hệ thống bên ngoài không nhận được event $\rightarrow$ Dữ liệu bị lệch (Inconsistency).Ngược lại, nếu gửi message trước rồi lưu DB sau thì khi lưu DB lỗi, message đã bị phát đi oan uổng.
+
+Cách Outbox Pattern giải quyết:
+Ghi vào bảng Outbox: Thay vì gọi trực tiếp sang Message Broker, ứng dụng gom việc lưu dữ liệu nghiệp vụ và lưu event cần gửi vào cùng một Database Transaction.
+
+SQL
+
+
+BEGIN TRANSACTION;
+  -- 1. Lưu giao dịch ví
+  INSERT INTO transactions (id, user_id, amount) VALUES (...);
+
+  -- 2. Lưu event vào bảng outbox (chung 1 DB transaction)
+  INSERT INTO outbox_messages (id, event_type, payload, status) VALUES (...);
+COMMIT;
+Đẩy event đi sau: Một tiến trình nền riêng biệt (gọi là Message Relay hoặc Outbox Processor) sẽ đọc các bản ghi chưa gửi trong bảng outbox_messages, tiến hành gửi lên Message Broker (Kafka/RabbitMQ), sau đó cập nhật trạng thái thành sent hoặc xóa đi.
+
+Tác dụng của Outbox Pattern trong project gowallet
+Đảm bảo tính nhất quán dữ liệu tài chính (Atomicity): Các giao dịch tiền tệ đòi hỏi độ chính xác tuyệt đối. Khi một ví tiền thực hiện chuyển khoản hoặc thanh toán, thay đổi số dư và sự kiện phát sinh (WalletBalanceUpdated, TransactionCreated) phải luôn đồng bộ. Outbox pattern ngăn chặn hoàn toàn tình trạng tiền đã bị trừ trong database của ví nhưng hệ thống thông báo/lịch sử giao dịch không nhận được event.
+
+Chống mất mát tin nhắn (At-least-once delivery): Do các message được lưu sẵn xuống database dưới dạng bảng trung gian (outbox), nếu Message Broker gặp sự cố sập nguồn hoặc mất mạng tạm thời, tiến trình background worker của outbox sẽ retry (thử lại) liên tục cho đến khi message được gửi thành công, đảm bảo không có sự kiện giao dịch nào bị bỏ sót.
+
+Tách biệt luồng xử lý (Decoupling): Giúp API endpoint xử lý ví phản hồi nhanh hơn, không bị nghẽn cổ chai hay phụ thuộc vào độ trễ của mạng kết nối tới Message Broker bên ngoài trong lúc người dùng đang thực hiện request.
+
 # --- more
 1. Ledger system
 

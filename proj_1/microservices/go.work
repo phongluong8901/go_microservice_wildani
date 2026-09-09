@@ -5,9 +5,9 @@ use (
 	./auth-service
 	./ledger-service
 	./payment-service
+	./scheduler-service
 	./shared
 	./transaction-service
 	./user-service
 	./wallet-service
-	./scheduler-service
 )

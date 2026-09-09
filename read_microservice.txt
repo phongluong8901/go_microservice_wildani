@@ -86,6 +86,9 @@ cd auth-service
 
 
 --- Makefifle.dev
+- tidy toan bo service
+make -f Makefile.dev tidy
+
 - build 6 service ra .exe
 make -f Makefile.dev build-linux
 
@@ -113,6 +116,7 @@ migrate create -ext sql -dir ledger-service/db/migrations -seq create_table_ledg
 -- transaction-service
 -
 migrate create -ext sql -dir transaction-service/db/migrations -seq add_transaction_table
+migrate create -ext sql -dir transaction-service/db/migrations -seq create_outbox_table
 
 -- payment-service
 -

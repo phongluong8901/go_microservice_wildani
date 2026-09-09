@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net"
 
 	pbLedger "github.com/bashocode/gowallet/microservices/ledger-service/proto/ledger"
@@ -8,10 +9,12 @@ import (
 	"github.com/bashocode/gowallet/microservices/shared/database"
 	"github.com/bashocode/gowallet/microservices/shared/logger"
 	"github.com/bashocode/gowallet/microservices/shared/middleware"
+	"github.com/bashocode/gowallet/microservices/transaction-service/internal/dlq"
 	transactionGRPC "github.com/bashocode/gowallet/microservices/transaction-service/internal/transaction/grpc"
 	transactionHandler "github.com/bashocode/gowallet/microservices/transaction-service/internal/transaction/handler"
 	transactionRepository "github.com/bashocode/gowallet/microservices/transaction-service/internal/transaction/repository"
 	transactionService "github.com/bashocode/gowallet/microservices/transaction-service/internal/transaction/service"
+	"github.com/bashocode/gowallet/microservices/transaction-service/internal/transaction/worker"
 	pb "github.com/bashocode/gowallet/microservices/transaction-service/proto/transaction"
 	pbUser "github.com/bashocode/gowallet/microservices/user-service/proto/user"
 	pbWallet "github.com/bashocode/gowallet/microservices/wallet-service/proto/wallet"
@@ -39,6 +42,14 @@ func main() {
 		logger.Fatal(nil, "Could not connect to MySQL", "error", err)
 	}
 	defer db.Close()
+
+	// Initialize & Start Outbox Worker
+	outboxWorker := worker.NewOutboxWorker(db, cfg.RabbitMQURL)
+
+	bgCtx, cancelWorker := context.WithCancel(context.Background())
+	defer cancelWorker()
+
+	go outboxWorker.Start(bgCtx)
 
 	// Connect to User Service gRPC
 	userConn, err := grpc.NewClient(
