@@ -171,3 +171,9 @@ git checkout -b p27_outbox_pattern_SAGA
 git add .
 git commit -m "change: first"
 git push -u origin p27_outbox_pattern_SAGA
+
+# --- -
+git checkout -b p28_rabbitMQ_event
+git add .
+git commit -m "change: first"
+git push -u origin p28_rabbitMQ_event
