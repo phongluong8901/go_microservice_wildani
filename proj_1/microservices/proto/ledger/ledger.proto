@@ -1,58 +1,57 @@
+syntax = "proto3"; // Khai báo sử dụng phiên bản Protocol Buffers v3
 
-syntax = "proto3";
+package ledger; // Định nghĩa namespace để tránh xung đột tên khi biên dịch
 
-package ledger;
+option go_package = "github.com/bashocode/gowallet/microservices/ledger-service/proto/ledger"; // Chỉ định đường dẫn package khi sinh mã nguồn Go
 
-option go_package = "github.com/bashocode/gowallet/microservices/ledger-service/proto/ledger";
-
-service LedgerService {
-  rpc RecordLedgerEntry (RecordEntryRequest) returns (RecordEntryResponse);
-  rpc RecordLedgerEntries (RecordEntriesRequest) returns (RecordEntriesResponse);
-  rpc GetBalanceFromLedger (GetBalanceRequest) returns (BalanceResponse);
-  rpc GetEntriesByWalletID (GetEntriesRequest) returns (EntriesResponse);
+service LedgerService { // Khai báo tập hợp các hàm gRPC Service
+  rpc RecordLedgerEntry (RecordEntryRequest) returns (RecordEntryResponse); // Hàm RPC ghi 1 bút toán đơn lẻ
+  rpc RecordLedgerEntries (RecordEntriesRequest) returns (RecordEntriesResponse); // Hàm RPC ghi hàng loạt bút toán
+  rpc GetBalanceFromLedger (GetBalanceRequest) returns (BalanceResponse); // Hàm RPC truy vấn số dư ví
+  rpc GetEntriesByWalletID (GetEntriesRequest) returns (EntriesResponse); // Hàm RPC lấy lịch sử bút toán theo ví
 }
 
-message RecordEntryRequest {
-  string transaction_id = 1;
-  string wallet_id = 2;
-  string type = 3;        // credit or debit
-  string amount = 4;      // decimal as string, e.g. "10000.50"
+message RecordEntryRequest { // Cấu trúc dữ liệu đầu vào khi ghi 1 bút toán
+  string transaction_id = 1; // Mã giao dịch gốc (field number = 1)
+  string wallet_id = 2; // Mã ví thực hiện (field number = 2)
+  string type = 3;        // credit or debit (loại giao dịch: cộng hoặc trừ tiền)
+  string amount = 4;      // decimal as string, e.g. "10000.50" (số tiền dạng chuỗi để tránh sai số float)
 }
 
-message RecordEntryResponse {
-  string entry_id = 1;
-  bool success = 2;
+message RecordEntryResponse { // Cấu trúc dữ liệu trả về khi ghi 1 bút toán thành công
+  string entry_id = 1; // Mã định danh bản ghi sổ cái vừa tạo
+  bool success = 2; // Trạng thái thành công hay thất bại
 }
 
-message RecordEntriesRequest {
-  repeated RecordEntryRequest entries = 1;
+message RecordEntriesRequest { // Cấu trúc yêu cầu khi ghi hàng loạt bút toán
+  repeated RecordEntryRequest entries = 1; // Mảng danh sách các yêu cầu ghi bút toán
 }
 
-message RecordEntriesResponse {
-  bool success = 1;
+message RecordEntriesResponse { // Cấu trúc phản hồi khi ghi hàng loạt hoàn tất
+  bool success = 1; // Trạng thái xử lý toàn bộ lô
 }
 
-message GetBalanceRequest {
-  string wallet_id = 1;
+message GetBalanceRequest { // Cấu trúc yêu cầu lấy số dư ví
+  string wallet_id = 1; // Mã ví cần tra cứu số dư
 }
 
-message BalanceResponse {
-  string calculated_balance = 1; // decimal as string
+message BalanceResponse { // Cấu trúc phản hồi số dư ví
+  string calculated_balance = 1; // Số dư hiện tại dưới dạng chuỗi độ chính xác cao
 }
 
-message GetEntriesRequest {
-  string wallet_id = 1;
+message GetEntriesRequest { // Cấu trúc yêu cầu lấy danh sách lịch sử bút toán
+  string wallet_id = 1; // Mã ví cần truy vấn lịch sử
 }
 
-message EntriesResponse {
-  repeated LedgerEntry entries = 1;
+message EntriesResponse { // Cấu trúc phản hồi danh sách lịch sử bút toán
+  repeated LedgerEntry entries = 1; // Mảng chứa các đối tượng bản ghi sổ cái chi tiết
 }
 
-message LedgerEntry {
-  string id = 1;
-  string transaction_id = 2;
-  string wallet_id = 3;
-  string entry_type = 4;
-  string amount = 5;
-  string created_at = 6;
+message LedgerEntry { // Cấu trúc chi tiết của một bản ghi sổ cái lưu trữ
+  string id = 1; // ID duy nhất của dòng sổ cái
+  string transaction_id = 2; // Mã giao dịch liên kết
+  string wallet_id = 3; // Mã ví sở hữu
+  string entry_type = 4; // Loại bút toán (credit/debit)
+  string amount = 5; // Số tiền giao dịch
+  string created_at = 6; // Thời điểm tạo bản ghi
 }
