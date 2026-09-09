@@ -159,3 +159,9 @@ git checkout -b p25_DLQ
 git add .
 git commit -m "change: first"
 git push -u origin p25_DLQ
+
+# --- -
+git checkout -b p26_scheduler_service
+git add .
+git commit -m "change: first"
+git push -u origin p26_scheduler_service
