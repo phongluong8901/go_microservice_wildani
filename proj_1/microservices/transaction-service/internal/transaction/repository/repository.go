@@ -32,16 +32,24 @@ func (r *mysqlTransactionRepository) Create(ctx context.Context, t *model.Transa
 	return err
 }
 
+func (r *mysqlTransactionRepository) CreateTx(ctx context.Context, tx *sql.Tx, t *model.Transaction) error {
+	query := `INSERT INTO transactions (id, sender_wallet_id, receiver_wallet_id, amount, description, idempotency_key, status) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	_, err := tx.ExecContext(ctx, query, t.ID, t.SenderWalletID, t.ReceiverWalletID, t.Amount, t.Description, t.IdempotencyKey, t.Status)
+	return err
+}
+
 func (r *mysqlTransactionRepository) GetByIdempotencyKey(ctx context.Context, key string) (*model.Transaction, error) {
 	query := `SELECT id, sender_wallet_id, receiver_wallet_id, amount, description, idempotency_key, status, created_at FROM transactions WHERE idempotency_key = ?`
 	t := &model.Transaction{}
 	var sender sql.NullString
+	var receiver sql.NullString
+	var desc sql.NullString
 	err := r.db.QueryRowContext(ctx, query, key).Scan(
 		&t.ID,
 		&sender,
-		&t.ReceiverWalletID,
+		&receiver,
 		&t.Amount,
-		&t.Description,
+		&desc,
 		&t.IdempotencyKey,
 		&t.Status,
 		&t.CreatedAt,
@@ -54,6 +62,12 @@ func (r *mysqlTransactionRepository) GetByIdempotencyKey(ctx context.Context, ke
 	if sender.Valid {
 		t.SenderWalletID = &sender.String
 	}
+	if receiver.Valid {
+		t.ReceiverWalletID = receiver.String
+	}
+	if desc.Valid {
+		t.Description = desc.String
+	}
 
 	return t, nil
 }
@@ -62,6 +76,29 @@ func (r *mysqlTransactionRepository) UpdateStatus(ctx context.Context, id, statu
 	query := `UPDATE transactions SET status = ? WHERE id = ?`
 	_, err := r.db.ExecContext(ctx, query, status, id)
 	return err
+}
+
+func (r *mysqlTransactionRepository) UpdateStatusTx(ctx context.Context, tx *sql.Tx, id, status string) error {
+	query := `UPDATE transactions SET status = ? WHERE id = ?`
+	_, err := tx.ExecContext(ctx, query, status, id)
+	return err
+}
+
+func (r *mysqlTransactionRepository) CreateOutboxTx(ctx context.Context, tx *sql.Tx, event *model.OutboxEvent) error {
+	query := `INSERT INTO outbox_events (id, event_type, payload, status) VALUES (?, ?, ?, ?)`
+	_, err := tx.ExecContext(ctx, query, event.ID, event.EventType, event.Payload, event.Status)
+	return err
+}
+
+// CountToday returns the number of transactions created since UTC midnight today.
+func (r *mysqlTransactionRepository) CountToday(ctx context.Context) (int64, error) {
+	query := `SELECT COUNT(*) FROM transactions WHERE created_at >= DATE(UTC_TIMESTAMP())`
+	var count int64
+	err := r.db.QueryRowContext(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (r *mysqlTransactionRepository) GetHistory(ctx context.Context, walletID string, params model.PaginationParams) ([]model.Transaction, int64, error) {
@@ -117,12 +154,14 @@ func (r *mysqlTransactionRepository) GetHistory(ctx context.Context, walletID st
 	for rows.Next() {
 		var t model.Transaction
 		var sender sql.NullString
+		var receiver sql.NullString
+		var desc sql.NullString
 		err := rows.Scan(
 			&t.ID,
 			&sender,
-			&t.ReceiverWalletID,
+			&receiver,
 			&t.Amount,
-			&t.Description,
+			&desc,
 			&t.IdempotencyKey,
 			&t.Status,
 			&t.CreatedAt,
@@ -133,6 +172,12 @@ func (r *mysqlTransactionRepository) GetHistory(ctx context.Context, walletID st
 		if sender.Valid {
 			t.SenderWalletID = &sender.String
 		}
+		if receiver.Valid {
+			t.ReceiverWalletID = receiver.String
+		}
+		if desc.Valid {
+			t.Description = desc.String
+		}
 		txs = append(txs, t)
 	}
 
@@ -141,35 +186,4 @@ func (r *mysqlTransactionRepository) GetHistory(ctx context.Context, walletID st
 	}
 
 	return txs, total, nil
-}
-
-// CountToday returns the number of transactions created since UTC midnight today.
-func (r *mysqlTransactionRepository) CountToday(ctx context.Context) (int64, error) {
-	query := `SELECT COUNT(*) FROM transactions WHERE created_at >= DATE(UTC_TIMESTAMP())`
-	var count int64
-	err := r.db.QueryRowContext(ctx, query).Scan(&count)
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
-
-func (r *mysqlTransactionRepository) CreateTx(ctx context.Context, tx *sql.Tx, t *model.Transaction) error {
-	query := `INSERT INTO transactions (id, sender_wallet_id, receiver_wallet_id, amount, description, idempotency_key, status) VALUES (?, ?, ?, ?, ?, ?, ?)`
-	_, err := tx.ExecContext(ctx, query, t.ID, t.SenderWalletID, t.ReceiverWalletID, t.Amount, t.Description, t.IdempotencyKey, t.Status)
-	return err
-}
-
-
-func (r *mysqlTransactionRepository) UpdateStatusTx(ctx context.Context, tx *sql.Tx, id, status string) error {
-	query := `UPDATE transactions SET status = ? WHERE id = ?`
-	_, err := tx.ExecContext(ctx, query, status, id)
-	return err
-}
-
-func (r *mysqlTransactionRepository) CreateOutboxTx(ctx context.Context, tx *sql.Tx, event *model.OutboxEvent) error {
-	query := `INSERT INTO outbox_events (id, event_type, payload, status) VALUES (?, ?, ?, ?)`
-	_, err := tx.ExecContext(ctx, query, event.ID, event.EventType, event.Payload, event.Status)
-	return err
 }
