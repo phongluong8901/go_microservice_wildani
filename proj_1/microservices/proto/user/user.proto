@@ -8,6 +8,7 @@ option go_package = "github.com/bashocode/gowallet/microservices/user-service/pr
 service UserService {
   rpc GetUserByID (GetUserRequest) returns (UserResponse);
   rpc GetUserByEmail (GetUserByEmailRequest) returns (UserResponse);
+  rpc CreateUser (CreateUserRequest) returns (UserResponse);
 }
 
 message GetUserRequest {
@@ -17,6 +18,16 @@ message GetUserRequest {
 message GetUserByEmailRequest {
   string email = 1;
 }
+
+
+message CreateUserRequest {
+  string full_name = 1;
+  string email = 2;
+  string oauth_provider = 3; // empty if password-based
+  string oauth_id = 4;       // empty if password-based
+  string avatar_url = 5;     // empty if none
+}
+
 
 message UserResponse {
   string id = 1;
