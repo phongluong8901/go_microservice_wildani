@@ -75,6 +75,10 @@ go mod init github.com/bashocode/gowallet/microservices/payment-service
 cd scheduler-service
 go mod init github.com/bashocode/gowallet/microservices/scheduler-service
 
+-- notification
+cd notification-service
+go mod init github.com/bashocode/gowallet/microservices/notification-service
+
 
 --- run
 
@@ -104,6 +108,7 @@ make migrateup-auth-service
 -- user-service
 -
 migrate create -ext sql -dir user-service/db/migrations -seq create_user_and_otp_tables
+migrate create -ext sql -dir user-service/db/migrations -seq create_notification_outbox_events
 
 -- wallet-service
 -
@@ -124,6 +129,10 @@ migrate create -ext sql -dir transaction-service/db/migrations -seq add_sender_u
 -
 migrate create -ext sql -dir payment-service/db/migrations -seq create_payments_table
 migrate create -ext sql -dir payment-service/db/migrations -seq create_payment_outbox_events
+
+-- notification-service
+-
+migrate create -ext sql -dir notification-service/db/migrations -seq create_processed_notifications
 
 
 

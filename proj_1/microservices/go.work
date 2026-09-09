@@ -10,4 +10,5 @@ use (
 	./transaction-service
 	./user-service
 	./wallet-service
+	./notification-service
 )
