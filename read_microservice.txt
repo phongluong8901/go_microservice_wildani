@@ -79,6 +79,10 @@ go mod init github.com/bashocode/gowallet/microservices/scheduler-service
 cd notification-service
 go mod init github.com/bashocode/gowallet/microservices/notification-service
 
+-- audit
+cd audit-service
+go mod init github.com/bashocode/gowallet/microservices/audit-service
+
 
 --- run
 

@@ -11,6 +11,7 @@ type Config struct {
 	DBDSN                 string
 	RedisAddr             string
 	RabbitMQURL           string
+	MongoURL              string
 	SMTPHost              string
 	SMTPPort              string
 	SMTPFrom              string
@@ -225,11 +226,17 @@ func LoadConfig() *Config {
 		transactionBaseURL = "http://localhost:8086"
 	}
 
+	mongoURL := os.Getenv("MONGO_URL")
+	if mongoURL == "" {
+		mongoURL = "mongodb://localhost:27017"
+	}
+
 
 	return &Config{
 		DBDSN:                 dsn,
 		RedisAddr:             redisAddr,
 		RabbitMQURL:           rabbitmqURL,
+		MongoURL:              mongoURL,
 		SMTPHost:              smtpHost,
 		SMTPPort:              smtpPort,
 		SMTPFrom:              smtpFrom,

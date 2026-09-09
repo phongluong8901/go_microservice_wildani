@@ -105,6 +105,22 @@ Tích hợp với Outbox Pattern: Làm cầu nối để đẩy các message đ�
 
 Khả năng chịu lỗi (Fault Tolerance): Nếu một microservice tiêu thụ (consumer) bị sập nguồn, RabbitMQ sẽ giữ lại các message trong queue và tiếp tục gửi lại khi service đó hồi phục, ngăn ngừa việc thất thoát giao dịch.
 
+7. Audit cùng Mongo
+Audit cùng Mongo là việc sử dụng cơ sở dữ liệu NoSQL MongoDB để lưu trữ nhật ký kiểm toán (audit logs), vết lịch sử hoạt động, hoặc các bản ghi sự kiện của hệ thống.
+
+Trong kiến trúc microservices như gowallet, cách tiếp cận này mang lại những đặc điểm sau:
+Linh hoạt về cấu trúc (Schemaless): Dữ liệu kiểm toán hoặc payload của các sự kiện thường có định dạng thay đổi tùy theo loại hành động (ví dụ: log của giao dịch nạp tiền sẽ khác với log đổi mật khẩu). MongoDB cho phép lưu trữ trực tiếp dưới dạng JSON/BSON mà không cần định nghĩa schema cứng nhắc hay thực hiện lệnh ALTER TABLE.
+
+Hiệu năng ghi cao (High Write Throughput): Các hệ thống tài chính phát sinh lượng log và vết sự kiện rất lớn mỗi giây. Việc ghi log sang MongoDB giúp giảm tải cho cơ sở dữ liệu quan hệ chính (như PostgreSQL hoặc MySQL đang chuyên xử lý số dư ví và lệnh chuyển tiền cốt lõi).
+
+Tách biệt dữ liệu: Tách bạch rõ ràng giữa cơ sở dữ liệu nghiệp vụ giao dịch (Transactional DB) và hệ thống lưu trữ nhật ký phân tích/kiểm tra (Audit/Log DB).
+
+Cách sử dụng trong project gowallet
+Lưu vết sự kiện hệ thống: Ghi nhận lại các mốc thời gian, trạng thái thay đổi của ví, hoặc các luồng sự kiện đi qua microservices để phục vụ cho việc tra soát khi xảy ra lỗi.
+Lịch sử hoạt động: Lưu trữ các hành động của người dùng hoặc các yêu cầu API quan trọng để phục vụ công tác bảo mật và kiểm tra (auditing).
+
+
+
 # --- more
 1. Ledger system
 
