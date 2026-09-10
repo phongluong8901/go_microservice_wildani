@@ -3,16 +3,20 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"time"
 
 	customErr "github.com/bashocode/gowallet/microservices/shared/errors"
 	"github.com/bashocode/gowallet/microservices/shared/logger"
-	"github.com/bashocode/gowallet/microservices/user-service/internal/email"
 	otpGenerator "github.com/bashocode/gowallet/microservices/user-service/internal/otp/generator"
+	"github.com/bashocode/gowallet/microservices/user-service/internal/user/cache"
 	"github.com/bashocode/gowallet/microservices/user-service/internal/user/model"
+	"github.com/bashocode/gowallet/microservices/user-service/internal/user/publisher"
 	"github.com/bashocode/gowallet/microservices/user-service/internal/user/repository"
 	pbWallet "github.com/bashocode/gowallet/microservices/wallet-service/proto/wallet"
 	"github.com/google/uuid"
@@ -35,31 +39,37 @@ type UserService interface {
 }
 
 type userService struct {
-	db           *sql.DB
-	rdb          *redis.Client
-	userRepo     repository.UserRepository
-	walletClient pbWallet.WalletServiceClient
-	otpRepo      repository.OTPRepository
-	rtRepo       repository.RefreshTokenRepository
-	emailSender  email.EmailSender
+	db                     *sql.DB
+	rdb                    *redis.Client
+	userRepo               repository.UserRepository
+	cacheRepo              cache.UserCacheRepository
+	walletClient           pbWallet.WalletServiceClient
+	otpRepo                repository.OTPRepository
+	rtRepo                 repository.RefreshTokenRepository
+	notificationOutboxRepo repository.NotificationOutboxRepository
+	baseURL                string
 }
 
 func NewUserService(
 	db *sql.DB,
 	rdb *redis.Client,
 	uRepo repository.UserRepository,
+	cacheRepo cache.UserCacheRepository,
 	wClient pbWallet.WalletServiceClient,
 	otpRepo repository.OTPRepository,
-	emailSender email.EmailSender,
+	notificationOutboxRepo repository.NotificationOutboxRepository,
+	baseURL string,
 ) UserService {
 	return &userService{
-		db:           db,
-		rdb:          rdb,
-		userRepo:     uRepo,
-		walletClient: wClient,
-		otpRepo:      otpRepo,
-		rtRepo:       repository.NewMySQLRefreshTokenRepository(db),
-		emailSender:  emailSender,
+		db:                     db,
+		rdb:                    rdb,
+		userRepo:               uRepo,
+		cacheRepo:              cacheRepo,
+		walletClient:           wClient,
+		otpRepo:                otpRepo,
+		rtRepo:                 repository.NewMySQLRefreshTokenRepository(db),
+		notificationOutboxRepo: notificationOutboxRepo,
+		baseURL:                baseURL,
 	}
 }
 
@@ -111,10 +121,31 @@ func (s *userService) Register(ctx context.Context, req model.CreateUserRequest)
 }
 
 func (s *userService) GetProfile(ctx context.Context, id string) (*model.User, error) {
+	user, err := s.cacheRepo.GetUserByID(ctx, id)
+	if err == nil {
+		logger.Log.InfoContext(ctx, "[Cache Hit] Retrieved user from Redis",
+			slog.String("user_id", id))
+		return user, nil
+	}
+
+	if !errors.Is(err, redis.Nil) {
+		logger.Log.WarnContext(ctx, "[Cache] Redis error, falling back to DB",
+			slog.String("user_id", id),
+			slog.String("error", err.Error()))
+	} else {
+		logger.Log.InfoContext(ctx, "[Cache Miss] User not found in Redis, reading from DB",
+			slog.String("user_id", id))
+	}
+
 	u, err := s.userRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, customErr.NewAppError(http.StatusNotFound, "USER_NOT_FOUND", "user not found")
 	}
+
+	_ = s.cacheRepo.SetUserByID(ctx, id, u, 15*time.Minute)
+	logger.Log.InfoContext(ctx, "[Cache Set] Stored user in Redis with TTL 15m",
+		slog.String("user_id", id))
+
 	return u, nil
 }
 
@@ -129,7 +160,7 @@ func (s *userService) UpdateProfile(ctx context.Context, id string, req model.Up
 		return nil, customErr.ErrInternalServer
 	}
 
-	return s.userRepo.GetByID(ctx, id)
+	return user, nil
 }
 
 func (s *userService) UpdateAvatar(ctx context.Context, id string, path string) error {
@@ -180,6 +211,42 @@ func (s *userService) GenerateAndSendOTP(ctx context.Context, userID string, ema
 		return customErr.ErrInternalServer
 	}
 
+	var subject string
+	var body string
+	switch otpType {
+	case "email_verification":
+		subject = "GoWallet - Verify Your Email"
+		body = fmt.Sprintf("Please verify your email by clicking the following link:\n\n%s/api/v1/users/verify-email?user_id=%s&code=%s\n\nThis link will expire in 15 minutes.\n\nThank you!", s.baseURL, userID, otpCode)
+	case "password_reset":
+		subject = "GoWallet - Reset Your Password"
+		body = fmt.Sprintf("Your password reset code is %s\n\nThis code will expire in 15 minutes.\n\nThank you!", otpCode)
+	default:
+		subject = "GoWallet - Security Code"
+		body = fmt.Sprintf("Your code is %s\n\nThis code will expire in 15 minutes.\n\nThank you!", otpCode)
+	}
+
+	eventID := uuid.New().String()
+	evt := publisher.NotificationEvent{
+		EventID:    eventID,
+		To:         emailAddr,
+		Subject:    subject,
+		Body:       body,
+		OccurredAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	payload, err := json.Marshal(evt)
+	if err != nil {
+		logger.Log.Error("failed to marshal notification event", "error", err)
+		return customErr.ErrInternalServer
+	}
+
+	// Atomically save OTP + outbox event in a single transaction
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Log.Error("failed to begin transaction for OTP", "error", err)
+		return customErr.ErrInternalServer
+	}
+	defer tx.Rollback()
+
 	otp := &model.OTP{
 		ID:        uuid.New().String(),
 		UserID:    userID,
@@ -188,33 +255,28 @@ func (s *userService) GenerateAndSendOTP(ctx context.Context, userID string, ema
 		ExpiresAt: time.Now().Add(15 * time.Minute),
 		Used:      false,
 	}
-
-	if err := s.otpRepo.Create(ctx, otp); err != nil {
-		logger.Log.Error("failed to save otp", "error", err)
+	if err := s.otpRepo.CreateTx(ctx, tx, otp); err != nil {
+		logger.Log.Error("failed to save otp in tx", "error", err)
 		return customErr.ErrInternalServer
 	}
 
-	go func() {
-		bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+	outboxEvent := &model.NotificationOutboxEvent{
+		ID:          eventID,
+		EventType:   "notification.send_email",
+		AggregateID: userID,
+		Payload:     payload,
+		Status:      "pending",
+		Attempts:    0,
+	}
+	if err := s.notificationOutboxRepo.CreateTx(ctx, tx, outboxEvent); err != nil {
+		logger.Log.Error("failed to save notification outbox event in tx", "error", err)
+		return customErr.ErrInternalServer
+	}
 
-		var subject string
-		var body string
-
-		switch otpType {
-		case "email_verification":
-			subject = "GoWallet - Verify Your Email"
-			body = fmt.Sprintf("Please verify your email by clicking the following link:\n\nhttp://localhost:8080/api/v1/users/verify-email?user_id=%s&code=%s\n\nThis link will expire in 15 minutes.\n\nThank you!", userID, otpCode)
-		case "password_reset":
-			subject = "GoWallet - Reset Your Password"
-			body = fmt.Sprintf("Your password reset code is %s\n\nThis code will expire in 15 minutes.\n\nThank you!", otpCode)
-		default:
-			subject = "GoWallet - Security Code"
-			body = fmt.Sprintf("Your code is %s\n\nThis code will expire in 15 minutes.\n\nThank you!", otpCode)
-		}
-
-		_ = s.emailSender.SendEmail(bgCtx, emailAddr, subject, body)
-	}()
+	if err := tx.Commit(); err != nil {
+		logger.Log.Error("failed to commit OTP+outbox transaction", "error", err)
+		return customErr.ErrInternalServer
+	}
 
 	return nil
 }

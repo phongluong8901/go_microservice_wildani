@@ -1,45 +1,43 @@
-package proxy // Khai báo package proxy để xử lý chuyển hướng request giữa các microservice
+package proxy
 
 import (
-	"net/http"          // Thư viện chuẩn xử lý HTTP server và request/response
-	"net/http/httputil" // Thư viện chuẩn của Go hỗ trợ xây dựng Reverse Proxy
-	"net/url"           // Thư viện chuẩn phân tích cú pháp và xử lý URL
+	"net/http"
+	"net/http/httputil"
+	"net/url"
 
-	"github.com/google/uuid" // Thư viện tạo mã định danh duy nhất UUID
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
-type ReverseProxy struct { // Định nghĩa cấu trúc quản lý proxy
-	target *url.URL               // URL đích mà proxy sẽ chuyển tiếp request tới
-	proxy  *httputil.ReverseProxy // Đối tượng ReverseProxy có sẵn của thư viện chuẩn Go
+type ReverseProxy struct {
+	proxy *httputil.ReverseProxy
 }
 
-func NewReverseProxy(targetURL string) (*ReverseProxy, error) { // Hàm khởi tạo một instance ReverseProxy từ chuỗi URL đích
-	url, err := url.Parse(targetURL) // Phân tích chuỗi URL đích thành kiểu *url.URL
-	if err != nil {                  // Kiểm tra nếu cấu trúc URL không hợp lệ
-		return nil, err // Trả về lỗi nếu quá trình parse thất bại
+func NewReverseProxy(targetURL string) (*ReverseProxy, error) {
+	target, err := url.Parse(targetURL)
+	if err != nil {
+		return nil, err
 	}
 
-	// Create Go's built-in reverse proxy with Rewrite only
-	proxy := &httputil.ReverseProxy{
-		Rewrite: func(r *httputil.ProxyRequest) {
-			r.SetURL(url)
-			r.Out.Header.Set("X-Forwarded-Host", r.In.Header.Get("Host"))
+	rp := &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.SetURL(target)
+			pr.Out.RequestURI = ""
+			pr.Out.Header.Set("X-Forwarded-Host", pr.In.Host)
 
-			// Inject & forward Request Correlation ID for distributed logging
-			corID := r.In.Header.Get("X-Correlation-ID")
-			if corID == "" {
-				corID = uuid.New().String()
+			// Forward correlation ID
+			if correlationID := pr.In.Header.Get("X-Correlation-ID"); correlationID != "" {
+				pr.Out.Header.Set("X-Correlation-ID", correlationID)
 			}
-			r.Out.Header.Set("X-Correlation-ID", corID)
+
+			// Propagate OpenTelemetry trace context to downstream service
+			otel.GetTextMapPropagator().Inject(pr.In.Context(), propagation.HeaderCarrier(pr.Out.Header))
 		},
 	}
 
-	return &ReverseProxy{ // Trả về con trỏ cấu trúc ReverseProxy đã cấu hình hoàn chỉnh
-		target: url,
-		proxy:  proxy,
-	}, nil
+	return &ReverseProxy{proxy: rp}, nil
 }
 
-func (p *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) { // Triển khai interface http.Handler để nhận và xử lý request HTTP
-	p.proxy.ServeHTTP(w, r) // Ủy quyền việc chuyển tiếp request và trả về response cho proxy mặc định của Go
+func (p *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	p.proxy.ServeHTTP(w, r)
 }

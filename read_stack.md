@@ -59,6 +59,270 @@ Xử lý lỗi phân tán (Failure Recovery): Nếu hệ thống ghi sổ cái (
 
 Giải phóng ràng buộc Database: Cho phép các microservices hoạt động độc lập, dùng database riêng mà vẫn phối hợp chặt chẽ được với nhau trong các nghiệp vụ phức tạp.
 
+5. Outbox Pattern
+Transactional Outbox Pattern là một design pattern trong kiến trúc phần mềm (đặc biệt phổ biến trong Microservices) dùng để giải quyết bài toán: Làm thế nào để lưu dữ liệu vào Database chính VÀ gửi message/event đi (qua Kafka, RabbitMQ, v.v.) một cách đáng tin cậy, đảm bảo tính nhất quán (Atomicity)
+
+Vấn đề gặp phải nếu không dùng Outbox Pattern:Khi hệ thống cần thực hiện 2 hành động cùng lúc:Lưu transaction vào Database của dịch vụ (ví dụ: trừ tiền ví, tạo đơn hàng).Phát một message/event lên Message Broker (ví dụ: thông báo WalletDeducted để các service khác xử lý).Nếu viết code tuần tự như sau:Go// Cách làm dễ bị lỗi
+db.Save(walletTransaction) // 1. Lưu DB thành công
+messageBroker.Publish("wallet.deducted", event) // 2. LỖI MẠNG / BROKER SẬP!
+Rủi ro: Bước 1 thành công nhưng bước 2 thất bại (do sập mạng, lỗi broker), dữ liệu trong DB đã đổi nhưng hệ thống bên ngoài không nhận được event $\rightarrow$ Dữ liệu bị lệch (Inconsistency).Ngược lại, nếu gửi message trước rồi lưu DB sau thì khi lưu DB lỗi, message đã bị phát đi oan uổng.
+
+Cách Outbox Pattern giải quyết:
+Ghi vào bảng Outbox: Thay vì gọi trực tiếp sang Message Broker, ứng dụng gom việc lưu dữ liệu nghiệp vụ và lưu event cần gửi vào cùng một Database Transaction.
+
+SQL
+
+
+BEGIN TRANSACTION;
+  -- 1. Lưu giao dịch ví
+  INSERT INTO transactions (id, user_id, amount) VALUES (...);
+
+  -- 2. Lưu event vào bảng outbox (chung 1 DB transaction)
+  INSERT INTO outbox_messages (id, event_type, payload, status) VALUES (...);
+COMMIT;
+Đẩy event đi sau: Một tiến trình nền riêng biệt (gọi là Message Relay hoặc Outbox Processor) sẽ đọc các bản ghi chưa gửi trong bảng outbox_messages, tiến hành gửi lên Message Broker (Kafka/RabbitMQ), sau đó cập nhật trạng thái thành sent hoặc xóa đi.
+
+Tác dụng của Outbox Pattern trong project gowallet
+Đảm bảo tính nhất quán dữ liệu tài chính (Atomicity): Các giao dịch tiền tệ đòi hỏi độ chính xác tuyệt đối. Khi một ví tiền thực hiện chuyển khoản hoặc thanh toán, thay đổi số dư và sự kiện phát sinh (WalletBalanceUpdated, TransactionCreated) phải luôn đồng bộ. Outbox pattern ngăn chặn hoàn toàn tình trạng tiền đã bị trừ trong database của ví nhưng hệ thống thông báo/lịch sử giao dịch không nhận được event.
+
+Chống mất mát tin nhắn (At-least-once delivery): Do các message được lưu sẵn xuống database dưới dạng bảng trung gian (outbox), nếu Message Broker gặp sự cố sập nguồn hoặc mất mạng tạm thời, tiến trình background worker của outbox sẽ retry (thử lại) liên tục cho đến khi message được gửi thành công, đảm bảo không có sự kiện giao dịch nào bị bỏ sót.
+
+Tách biệt luồng xử lý (Decoupling): Giúp API endpoint xử lý ví phản hồi nhanh hơn, không bị nghẽn cổ chai hay phụ thuộc vào độ trễ của mạng kết nối tới Message Broker bên ngoài trong lúc người dùng đang thực hiện request.
+
+6. RabbitMQ và Event Publishing
+RabbitMQ: Là một Message Broker (phần mềm trung gian quản lý hàng đợi tin nhắn) cho phép các ứng dụng hoặc microservices trao đổi thông tin với nhau một cách bất đồng bộ (asynchronous) thông qua các hàng đợi (queues) và luồng trao đổi (exchanges).
+
+Event Publishing (Phát sự kiện): Là hành động một service (Publisher) phát đi một thông báo dạng sự kiện (ví dụ: TransactionCreated, WalletUpdated) lên Message Broker ngay sau khi một hành động nghiệp vụ hoàn tất, thay vì phải gọi trực tiếp sang các service khác.
+
+Vai trò của RabbitMQ & Event Publishing trong project gowallet
+Tách biệt hệ thống (Decoupling): Giúp transaction-service hoặc wallet-service không bị phụ thuộc chặt chẽ (tightly coupled) vào các service phụ trợ như thông báo, lịch sử, hoặc xử lý hóa đơn. Service chỉ cần thực hiện xong nhiệm vụ của mình và bắn event lên RabbitMQ.
+
+Xử lý bất đồng bộ và tăng hiệu năng: Các tác vụ nặng hoặc không cần phản hồi tức thì (như gửi email thông báo, ghi log kiểm toán phức tạp) được đẩy vào queue để các worker service xử lý ngầm, giúp API phản hồi nhanh hơn cho người dùng.
+
+Đảm bảo tính nhất quán (Eventual Consistency): Khi một giao dịch tài chính xảy ra, event phát đi đảm bảo rằng các service liên quan (như cập nhật số dư, ghi sổ cái ledger) đều nhận được dữ liệu và tự đồng bộ trạng thái của mình theo.
+
+Tích hợp với Outbox Pattern: Làm cầu nối để đẩy các message được lưu tạm trong bảng outbox của database lên hệ thống message queue một cách an toàn, giải quyết triệt để vấn đề mất dữ liệu khi mạng hoặc broker gặp sự cố gián đoạn.
+
+Khả năng chịu lỗi (Fault Tolerance): Nếu một microservice tiêu thụ (consumer) bị sập nguồn, RabbitMQ sẽ giữ lại các message trong queue và tiếp tục gửi lại khi service đó hồi phục, ngăn ngừa việc thất thoát giao dịch.
+
+7. Audit cùng Mongo
+Audit cùng Mongo là việc sử dụng cơ sở dữ liệu NoSQL MongoDB để lưu trữ nhật ký kiểm toán (audit logs), vết lịch sử hoạt động, hoặc các bản ghi sự kiện của hệ thống.
+
+Trong kiến trúc microservices như gowallet, cách tiếp cận này mang lại những đặc điểm sau:
+Linh hoạt về cấu trúc (Schemaless): Dữ liệu kiểm toán hoặc payload của các sự kiện thường có định dạng thay đổi tùy theo loại hành động (ví dụ: log của giao dịch nạp tiền sẽ khác với log đổi mật khẩu). MongoDB cho phép lưu trữ trực tiếp dưới dạng JSON/BSON mà không cần định nghĩa schema cứng nhắc hay thực hiện lệnh ALTER TABLE.
+
+Hiệu năng ghi cao (High Write Throughput): Các hệ thống tài chính phát sinh lượng log và vết sự kiện rất lớn mỗi giây. Việc ghi log sang MongoDB giúp giảm tải cho cơ sở dữ liệu quan hệ chính (như PostgreSQL hoặc MySQL đang chuyên xử lý số dư ví và lệnh chuyển tiền cốt lõi).
+
+Tách biệt dữ liệu: Tách bạch rõ ràng giữa cơ sở dữ liệu nghiệp vụ giao dịch (Transactional DB) và hệ thống lưu trữ nhật ký phân tích/kiểm tra (Audit/Log DB).
+
+Cách sử dụng trong project gowallet
+Lưu vết sự kiện hệ thống: Ghi nhận lại các mốc thời gian, trạng thái thay đổi của ví, hoặc các luồng sự kiện đi qua microservices để phục vụ cho việc tra soát khi xảy ra lỗi.
+Lịch sử hoạt động: Lưu trữ các hành động của người dùng hoặc các yêu cầu API quan trọng để phục vụ công tác bảo mật và kiểm tra (auditing).
+
+8. Object Storage MinIO for Outbox Archiving
+Khái niệm Object Storage MinIO for Outbox Archiving (Lưu trữ đối tượng MinIO để lưu trữ/sao lưu sự kiện Outbox) là một giải pháp kiến trúc dùng để dọn dẹp và lưu trữ lâu dài các message/sự kiện đã được xử lý xong từ bảng Outbox trong cơ sở dữ liệu quan hệ.
+
+Trong kiến trúc sử dụng Transactional Outbox Pattern, mọi sự kiện thay đổi dữ liệu (như nạp tiền, chuyển khoản, thanh toán) đều được ghi tạm vào bảng outbox_messages trong database (MySQL/PostgreSQL) cùng một transaction với nghiệp vụ.
+
+Sau khi background worker đọc sự kiện và đẩy thành công lên RabbitMQ, bản ghi trong bảng outbox sẽ bị đánh dấu là PROCESSED.
+
+Nếu để các bản ghi đã xử lý này tích tụ lâu ngày, bảng outbox sẽ phình to (hàng triệu, chục triệu dòng), làm giảm hiệu năng truy vấn của database và tốn tài nguyên ổ cứng.
+
+Tuy nhiên, việc xóa hẳn (hard delete) ngay lập tức các sự kiện cũ có thể làm mất dữ liệu lịch sử quan trọng phục vụ cho việc đối soát, audit sau này hoặc debug sự cố hệ thống.
+
+Tác dụng cụ thể trong dự án gowallet
+Lưu trữ phân vùng theo thời gian (Date-partitioned paths): Các sự kiện outbox sau khi đã hoàn thành chu kỳ xử lý sẽ được scheduler-service gom lại và đẩy (archive) lên MinIO (dịch vụ object storage tương thích chuẩn Amazon S3) theo cấu trúc thư mục rõ ràng, ví dụ:
+
+Giải phóng dung lượng Database: Sau khi đã đẩy dữ liệu sự kiện sang MinIO thành công, các dòng dữ liệu đó sẽ được an toàn xóa khỏi bảng outbox trong MySQL, giữ cho database luôn gọn gàng, nhẹ và tốc độ đọc/ghi cao.
+
+Kho lưu trữ lạnh (Cold Storage) để tra soát: MinIO đóng vai trò là kho lưu trữ lịch sử dài hạn với chi phí thấp. Khi cần kiểm tra lại lịch sử giao dịch hoặc sự kiện cũ từ vài tháng trước, hệ thống hoặc kỹ sư có thể truy xuất trực tiếp các file JSON trên MinIO mà không làm ảnh hưởng đến hiệu năng của database chính.
+
+9. MinioMinIO là mã nguồn mở dùng để xây dựng hệ thống lưu trữ đối tượng (Object Storage) tương thích với chuẩn Amazon S3.
+
+Tương thích API S3: Cho phép bạn dễ dàng chuyển đổi code giữa AWS S3 và MinIO mà không cần sửa đổi nhiều.
+
+Tự host (Self-hosted): Bạn có thể tự triển khai MinIO trên server riêng, VPS, hoặc Docker để kiểm soát hoàn toàn dữ liệu và tối ưu chi phí lưu trữ so với việc thuê cloud công cộng.
+
+Hiệu suất cao: Viết bằng ngôn ngữ Go nên MinIO có tốc độ đọc/ghi dữ liệu rất nhanh, nhẹ và tiết kiệm tài nguyên.
+
+Bảo mật tốt: Hỗ trợ mã hóa dữ liệu, quản lý quyền truy cập chi tiết (IAM, bucket policy) và tích hợp các công cụ kiểm soát an toàn.
+
+10. Cache-Aside Redis
+Cache-Aside (hay còn gọi là Lazy Loading) là một mô hình thiết kế phổ biến để đồng bộ dữ liệu giữa Database và Cache (như Redis).
+
+1. Cơ chế của Cache-Aside Pattern
+Khi ứng dụng cần đọc dữ liệu, nó sẽ thực hiện theo các bước sau:
+
+Kiểm tra Cache: Ứng dụng tìm dữ liệu trong Redis trước.
+
+Cache Hit: Nếu tìm thấy, trả về dữ liệu ngay lập tức.
+
+Cache Miss: Nếu không tìm thấy:
+
+Ứng dụng truy vấn trực tiếp vào Database để lấy dữ liệu.
+
+Sau khi có dữ liệu từ Database, ứng dụng ghi dữ liệu đó vào Redis (thường kèm theo thời gian hết hạn - TTL) để các lần yêu cầu sau có thể đọc từ cache.
+
+Trả về kết quả cho người dùng.
+
+Ưu điểm:
+
+Hệ thống chỉ lưu vào cache những gì thực sự được truy cập.
+
+Nếu Redis bị sập, hệ thống vẫn hoạt động bình thường (đọc trực tiếp từ DB).
+
+Tác dụng trong commit gowallet
+Giảm tải cho cơ sở dữ liệu (Database Offloading): Bằng cách lưu trữ kết quả các truy vấn thường xuyên (như lấy thông tin ví, số dư, hoặc thông tin user) vào Redis, ứng dụng sẽ giảm bớt số lượng truy vấn trực tiếp xuống MySQL. Điều này giúp hệ thống phản hồi nhanh hơn nhiều vì Redis hoạt động trên RAM.
+
+Tăng hiệu năng (Performance Optimization): Các tác vụ liên quan đến ví tiền thường yêu cầu độ trễ thấp. Khi dữ liệu đã được cache, thay vì phải thực hiện các phép join bảng phức tạp hoặc truy vấn đĩa cứng ở MySQL, ứng dụng chỉ cần lấy từ cache với tốc độ tính bằng micro giây.
+
+Tính nhất quán của dữ liệu: Trong commit này, việc triển khai Cache-Aside giúp bạn đảm bảo dữ liệu "nóng" nhất được ưu tiên nằm trong cache, đồng thời vẫn giữ được nguồn sự thật (source of truth) là database.
+
+Lưu ý quan trọng khi dùng Cache-Aside:
+Bạn cần đảm bảo rằng khi dữ liệu trong database thay đổi (ví dụ: thực hiện giao dịch nạp/rút tiền trong gowallet), bạn phải xóa hoặc cập nhật lại giá trị tương ứng trong Redis để tránh tình trạng "cache bị cũ" (stale data). Nếu không, người dùng có thể thấy số dư cũ dù tiền đã được cập nhật trong database.
+
+11. Graceful Shutdown trong Microservices
+Graceful Shutdown (Tạm dịch: Đóng ứng dụng một cách lịch sự/êm ả) là một kỹ thuật quản lý vòng đời của ứng dụng khi nhận được tín hiệu dừng (ví dụ: lệnh tắt từ hệ thống, SIGTERM từ Docker/Kubernetes khi scale down, redeploy, hoặc bấm Ctrl+C).
+
+Thay vì ngắt kết nối ngay lập tức và đột ngột làm rơi các request đang xử lý, cơ chế này sẽ thực hiện lần lượt các bước sau:
+
+Ngừng nhận request mới: Ứng dụng báo hiệu cho Load Balancer hoặc API Gateway (như Nginx, Kong) rằng nó chuẩn bị tắt, từ chối hoặc không nhận thêm các kết nối HTTP mới.
+
+Xử lý dứt điểm các request đang dang dở: Cho phép các request hiện tại (đang chạy bên trong server) có một khoảng thời gian chờ nhất định (timeout) để hoàn thành công việc và trả về kết quả cho client.
+
+Đóng các tài nguyên hệ thống an toàn: Ngắt kết nối Database pools, đóng kết nối Redis, dừng các background worker / message queue consumers đang chạy ngầm, rồi mới thoát tiến trình hoàn toàn.
+
+Tác dụng trong project gowallet
+Không làm mất dữ liệu giao dịch dang dở: Tránh tình trạng người dùng vừa bấm nút thanh toán, nạp/rút tiền, hệ thống đang xử lý dở các lệnh ghi vào Database/Redis thì server bị tắt ngóm, dẫn đến lỗi lệch số dư hoặc giao dịch treo (pending).
+
+Đảm bảo tính toàn vẹn của kết nối (Connection Pooling): Giúp đóng các kết nối tới MySQL/PostgreSQL và Redis một cách trật tự, tránh làm hỏng hàng đợi kết nối hoặc gây rò rỉ tài nguyên (resource leak) trên server.
+
+Zero Downtime Deployment / Scaling: Khi chạy trên Docker hoặc Kubernetes, khi ứng dụng được cập nhật phiên bản mới hoặc scale hạ tầng, Kubernetes sẽ gửi tín hiệu SIGTERM. Nhờ Graceful Shutdown, service sẽ xử lý nốt các request cuối cùng rồi mới tắt, giúp người dùng hoàn toàn không gặp lỗi 502 Bad Gateway hay Connection Refused trong quá trình deploy.
+
+12. XSS Protection
+XSS (Cross-Site Scripting) là một lỗ hổng bảo mật phổ biến, cho phép kẻ tấn công chèn các đoạn mã độc (thường là JavaScript hoặc HTML) vào các trang web được hiển thị cho người dùng khác. Khi nạn nhân tải trang, mã độc đó sẽ thực thi trong trình duyệt của họ, dẫn đến việc bị đánh cắp cookie, session token, hoặc thao túng giao diện.
+
+XSS Protection trong Go bao gồm các biện pháp lập trình và cơ chế phòng thủ nhằm vô hiệu hóa mã độc trước khi chúng kịp hiển thị hoặc chạy trên trình duyệt:
+Escape dữ liệu: Thư viện chuẩn của Go cung cấp các gói như html (với hàm html.EscapeString) hoặc package html/template tự động chuyển đổi các ký tự nguy hiểm thành dạng an toàn (ví dụ: chuyển <script> thành &lt;script&gt;).
+
+Sử dụng Security Headers: Thiết lập các tiêu đề HTTP (như X-XSS-Protection, Content-Security-Policy - CSP) để ép trình duyệt kích hoạt bộ lọc phòng chống XSS hoặc ngăn chặn việc chạy các đoạn script không rõ nguồn gốc.
+
+Sanitize Input: Kiểm tra, làm sạch dữ liệu đầu vào từ người dùng (ví dụ: tên tài khoản, nội dung chat, ghi chú giao dịch) để loại bỏ các thẻ HTML độc hại trước khi lưu vào Database hoặc trả về cho Client.
+
+Tác dụng trong project gowallet
+Ngăn chặn đánh cắp Session / Token: Nếu hacker chèn thành công mã độc dạng XSS vào phần thông tin người dùng (như tên tài khoản, lời nhắn chuyển tiền) và đoạn mã đó hiển thị trên trang của người khác, mã độc có thể đánh cắp JWT token hoặc cookie phiên đăng nhập, từ đó chiếm đoạt quyền truy cập ví.
+
+Bảo vệ dữ liệu giao dịch và lịch sử: Tránh việc kẻ xấu lợi dụng các trường nhập liệu văn bản (như mô tả giao dịch, ghi chú nạp/rút tiền) để thực hiện hành vi tấn công Stored XSS nhằm phá hoại giao diện hiển thị của hệ thống.
+
+Tuân thủ chuẩn bảo mật ứng dụng: Giúp hệ thống an toàn hơn trước các đợt quét lỗ hổng bảo mật (Pentest/Vulnerability Assessment) bằng cách cấu hình các HTTP headers an toàn và xử lý dữ liệu đầu ra chuẩn chỉnh.
+
+13. CSRF Protection
+CSRF (Cross-Site Request Forgery - Giả mạo yêu cầu qua lại trang web) là một kiểu tấn công mà kẻ xấu lừa trình duyệt của người dùng (đang đăng nhập vào một ứng dụng hợp lệ) tự động thực hiện các hành động không mong muốn (như chuyển tiền, đổi mật khẩu) trên trang web đó mà nạn nhân hoàn toàn không hay biết.
+
+Cơ chế chống CSRF trong Go thường dựa trên Synchronizer Token Pattern (mô hình Token đồng bộ) hoặc việc cấu hình chặt chẽ cookie:
+
+Anti-CSRF Token: Server tạo ra một chuỗi token ngẫu nhiên, độc nhất cho mỗi phiên làm việc hoặc mỗi request, gắn nó vào form HTML hoặc trả về qua Header. Khi client gửi request dạng thay đổi dữ liệu (POST, PUT, DELETE), server sẽ kiểm tra xem token gửi lên có khớp với token đã lưu trong session của người dùng hay không. Nếu không khớp hoặc thiếu, request sẽ bị từ chối.
+
+SameSite Cookie Policy: Cấu hình cookie xác thực (Session Cookie) với thuộc tính SameSite=Strict hoặc SameSite=Lax để trình duyệt tự động chặn việc gửi cookie kèm theo các request bắt nguồn từ trang web của bên thứ ba.
+
+Tác dụng trong project gowallet
+Ngăn chặn lệnh chuyển tiền trái phép: Nếu một người dùng đang đăng nhập vào gowallet và vô tình truy cập vào một trang web độc hại do hacker lập ra, trang web độc hại đó có thể ngầm gửi một request POST/PUT yêu cầu chuyển toàn bộ số dư ví sang tài khoản của kẻ tấn công. Nhờ có CSRF token, server sẽ phát hiện request này thiếu hoặc sai token hợp lệ và lập tức chặn lại.
+
+Bảo vệ các thao tác nhạy cảm: Đảm bảo mọi hành động thay đổi trạng thái tài khoản (như nạp tiền, rút tiền, đổi mật khẩu, cập nhật thông tin ví) đều phải xuất phát từ chính chủ thông qua giao diện ứng dụng hợp lệ chứ không bị mạo danh từ các nguồn bên ngoài.
+
+14. TLS-encrypted gRPC với mTLS và xác thực danh tính (Identity Verification)
+TLS-encrypted gRPC với mTLS và xác thực danh tính (Identity Verification) là một cơ chế bảo mật cao cấp dùng để bảo vệ kênh truyền thông tin nội bộ giữa các microservices, đảm bảo an toàn tuyệt đối cho kiến trúc phân tán.
+
+gRPC & TLS: gRPC sử dụng HTTP/2 và Protocol Buffers để truyền dữ liệu với hiệu suất cực cao. Khi tích hợp TLS, toàn bộ luồng dữ liệu truyền qua mạng giữa các service đều được mã hóa, ngăn chặn hoàn toàn các cuộc tấn công nghe lén (sniffing) hoặc xen giữa (Man-in-the-Middle).
+
+mTLS (Mutual TLS - Xác thực hai chiều): Khác với HTTPS thông thường (chỉ client kiểm tra server), mTLS bắt buộc cả client (service gọi) và server (service nhận) phải trình diện chứng chỉ số (X.509 certificate) để xác thực lẫn nhau trước khi thiết lập bất kỳ kết nối nào.
+
+Xác thực danh tính (Identity Verification): Dựa vào chứng chỉ số của mTLS, service nhận sẽ trích xuất thông tin định danh (như SAN - Subject Alternative Name) để kiểm tra xem service gọi có thực sự là đối tượng được ủy quyền hay không, từ đó ngăn chặn tình trạng service giả mạo gọi vào API nội bộ.
+
+Tác dụng và ý nghĩa trong hệ thống Microservices:
+
+Thiết lập mô hình Zero-Trust: Loại bỏ giả định rằng "mạng nội bộ (private network) hoàn toàn an toàn". Ngay cả khi hacker lọt được vào bên trong cụm hạ tầng Docker/Kubernetes, chúng cũng không thể kết nối hoặc gọi API các service khác nếu không sở hữu cặp chứng chỉ số và private key hợp lệ.
+
+Bảo vệ dữ liệu giao dịch nhạy cảm: Trong các hệ thống tài chính hay ví điện tử, thông tin truyền giữa các service lõi (như giữa wallet-service và ledger-service) được mã hóa chặt chẽ ở tầng giao vận, chống rò rỉ dữ liệu tài khoản người dùng.
+
+Định danh bằng mật mã học: Thay thế việc dựa vào địa chỉ IP nội bộ, port tĩnh hoặc các token đơn giản dễ bị giả mạo bằng chứng thực mã hóa chuẩn công nghiệp, giúp việc phân quyền giao tiếp giữa các service trở nên minh bạch và cực kỳ an toàn.
+
+15. WebSocket & Real-Time Notifications
+WebSocket là một giao thức truyền thông mạng máy tính, cho phép thiết lập một kết nối song công (full-duplex) qua một kết nối TCP duy nhất giữa Client (trình duyệt, app mobile) và Server. Khác với mô hình HTTP Request/Response truyền thống (client phải hỏi thì server mới trả lời), WebSocket cho phép cả hai bên chủ động đẩy dữ liệu cho nhau bất cứ lúc nào ngay khi có sự kiện mới.
+
+Trong Go, WebSocket thường được xây dựng hiệu quả bằng các thư viện phổ biến như gorilla/websocket hoặc thông qua các cơ chế tích hợp sẵn trong framework như Fiber ([github.com/gofiber/websocket/v2](https://github.com/gofiber/websocket/v2)). Hệ thống thường sử dụng mô hình Hub / Client Manager để quản lý danh sách các kết nối đang mở, định tuyến thông điệp (broadcast hoặc unicast) tới đúng người dùng một cách bất đồng bộ với hiệu suất xử lý đồng thời (concurrency) cực cao nhờ Goroutine và Channel.
+
+Tác dụng trong project gowallet
+Cập nhật số dư ví tức thì (Instant Balance Update): Khi có giao dịch nạp tiền, rút tiền, hoặc nhận tiền chuyển khoản từ người khác thành công, hệ thống sẽ ngay lập tức đẩy thông báo biến động số dư qua WebSocket xuống giao diện người dùng mà không cần họ phải chủ động bấm F5 (tải lại trang) hay gọi API polling liên tục.
+
+Trạng thái giao dịch Real-time (Live Status): Hiển thị trực quan tiến trình xử lý của các lệnh giao dịch lớn hoặc các yêu cầu thanh toán (ví dụ: trạng thái Đang xử lý -> Thành công / Thất bại) ngay trên màn hình dashboard của người dùng một cách mượt mà.
+
+Tối ưu hóa tài nguyên hệ thống: Thay vì để hàng nghìn client liên tục gửi HTTP request lên server mỗi vài giây để kiểm tra xem có tiền về hay không (gây quá tải nặng cho Database), WebSocket duy trì một kết nối ngầm cực nhẹ, tiết kiệm đáng kể băng thông và giảm tải tối đa cho cụm backend Go.
+
+16. Database Indexing
+Database Indexing (Đánh chỉ mục cơ sở dữ liệu) là một cấu trúc dữ liệu (thường dưới dạng cây B-Tree) được tạo trên một hoặc nhiều cột của bảng cơ sở dữ liệu. Thay vì phải quét toàn bộ bảng từ trên xuống dưới (Full Table Scan) để tìm kiếm một bản ghi, hệ thống cơ sở dữ liệu sẽ tra cứu qua chỉ mục giống như cách bạn tra mục lục ở cuối sách để tìm trang chứa nội dung ngay lập tức.
+
+Trong các ứng dụng backend viết bằng Go, việc tối ưu hóa câu lệnh truy vấn qua GORM, sqlc hay pgx luôn phải đi đôi với việc thiết kế Index hợp lý ở tầng Database (PostgreSQL/MySQL) nhằm đảm bảo hiệu năng khi dữ liệu lớn.
+
+Tác dụng trong project gowallet
+Tăng tốc độ tra cứu số dư và tài khoản: Các bảng như users, wallets thường xuyên thực hiện các câu lệnh SELECT dựa trên user_id hoặc account_number. Đánh index trên các cột này giúp giảm thời gian truy vấn từ mức độ tuyến tính xuống mức độ logarithmic (gần như tức thì)
+
+Tối ưu hóa lịch sử giao dịch (Transaction History): Bảng lịch sử giao dịch (transactions) tích lũy dữ liệu rất nhanh theo thời gian. Khi người dùng mở ứng dụng xem danh sách giao dịch lọc theo wallet_id hoặc created_at, Index giúp cơ sở dữ liệu trả kết quả trong vài mili-giây mà không làm nghẽn hệ thống.
+
+Đảm bảo tính duy nhất và ràng buộc (Unique Index): Các trường như email, số điện thoại hoặc mã giao dịch (reference_id) được đánh index dạng UNIQUE, vừa giúp tìm kiếm siêu nhanh vừa ngăn chặn tuyệt đối tình trạng tạo trùng lặp dữ liệu hay double-spending (chi tiêu kép).
+
+Thuật toán tìm kiếm nhị phân (Binary Search): Khi bạn tìm kiếm một giá trị, cơ sở dữ liệu không cần duyệt qua từng dòng mà bắt đầu từ nút gốc của cây, liên tục chia đôi khoảng dữ liệu để lọc. Nhờ vậy, số bước kiểm tra giảm đi cực kỳ nhiều (độ phức tạp giảm từ $O(N)$ xuống mức logarit $O(\log N)$).
+
+17. Cursor Pagination (Phân trang bằng con trỏ) và Reliability (Độ tin cậy)
+Cursor Pagination (Phân trang bằng con trỏ) và Reliability (Độ tin cậy) là hai kỹ thuật kiến trúc quan trọng nhằm tối ưu hóa hiệu suất đọc dữ liệu lớn và đảm bảo tính toàn vẹn hệ thống trong các ứng dụng tài chính như gowallet.
+
+cursor Pagination là kỹ thuật phân trang dựa trên một mốc tham chiếu cố định (cursor) — thường là ID bản ghi cuối cùng hoặc mốc thời gian (created_at) của trang trước — thay vì sử dụng cơ chế LIMIT / OFFSET truyền thống.
+
+Cách hoạt động: Thay vì bắt CSDL đếm và bỏ qua hàng vạn bản ghi (OFFSET 10000), câu lệnh truy vấn sẽ dùng điều kiện trực tiếp từ mốc con trỏ:
+
+SQL
+
+
+SELECT * FROM transactions WHERE id > last_seen_id ORDER BY id ASC LIMIT 20;
+
+Tốc độ cực nhanh cho lịch sử giao dịch: Bảng giao dịch ví điện tử tích lũy dữ liệu rất lớn. OFFSET truyền thống sẽ chậm dần khi người dùng kéo xuống các trang sâu (vì CSDL phải quét và bỏ qua từ đầu). Cursor Pagination giữ tốc độ truy vấn luôn nhanh đều ở mọi trang vì nó nhảy thẳng đến mốc ID tiếp theo nhờ Index.
+
+Chống trôi/lặp dữ liệu (Data Drift): Trong môi trường tài chính có giao dịch diễn ra liên tục, nếu dùng OFFSET, một giao dịch mới chèn lên đầu có thể khiến trang sau bị lặp hoặc sót dữ liệu. Cursor dùng mốc tham chiếu tĩnh giúp khắc phục hoàn toàn vấn đề này.
+
+Reliability (Độ tin cậy) đóng vai trò gì?
+Reliability trong các tiến trình xử lý nền (như quét hàng đợi thông báo, đồng bộ số dư hoặc xử lý webhook thanh toán Stripe) là khả năng hệ thống vận hành bền bỉ, không làm thất lạc dữ liệu hoặc bỏ sót sự kiện ngay cả khi xảy ra sự cố đột ngột (mất mạng CSDL, sập server).
+
+Bảo vệ luồng giao dịch ngầm: Kết hợp với các mô hình như Transactional Outbox Pattern, tính năng reliability đảm bảo các sự kiện quan trọng (như xác nhận nạp tiền, trừ tiền ví) được xử lý thành công theo cơ chế an toàn, có khả năng thử lại (retry) khi gặp lỗi.
+
+Đồng bộ trạng thái chính xác: Giúp hệ thống không bị lệch số dư hay mất thông báo biến động tiền tệ của người dùng trong các kịch bản tải cao (high concurrency).
+
+18. OpenTelemetry và Jaeger
+OpenTelemetry (OTel): Bộ công cụ chuẩn hóa tiêu chuẩn công nghiệp (API và SDK) được tích hợp trực tiếp vào mã nguồn Go của các microservices để sinh ra dữ liệu đo lường gồm Traces (dấu vết luồng xử lý), Metrics, và Logs. Nó tự động gắn kết các định danh như Trace ID và Span ID vào mọi yêu cầu HTTP hoặc gRPC khi chúng truyền qua các dịch vụ.
+
+Jaeger: Hệ thống mã nguồn mở chuyên dụng để thu thập, lưu trữ và hiển thị trực quan dữ liệu traces. Jaeger cung cấp một giao diện bảng điều khiển (UI Dashboard) giúp lập trình viên vẽ lại sơ đồ thời gian thực của một yêu cầu khi nó chạy xuyên qua hệ thống phân tán.
+
+Tác dụng cụ thể trong project gowallet
+Theo dõi luồng giao dịch xuyên suốt (End-to-End Tracing): Trong kiến trúc microservices của gowallet, một nghiệp vụ tài chính như "chuyển tiền" hoặc "nạp tiền" không chỉ nằm ở một nơi mà phải đi qua nhiều service độc lập (ví dụ: api-gateway $\rightarrow$ auth-service $\rightarrow$ wallet-service $\rightarrow$ ledger-service). OpenTelemetry giúp liên kết tất cả các bước này lại bằng một Trace ID duy nhất, cho thấy toàn bộ bức tranh hành trình của giao dịch.
+
+Phát hiện chính xác điểm nghẽn (Bottleneck Detection): Khi hệ thống có hiện tượng chậm hoặc phản hồi lâu, thay vì đoán mò xem lỗi nằm ở đâu, bảng điều khiển của Jaeger hiển thị biểu đồ dạng thác nước (Timeline chart) chỉ đích xác đoạn code, câu lệnh SQL, hoặc mạng nội bộ nào đang tốn nhiều thời gian xử lý nhất (ví dụ: mất 2ms ở auth nhưng mất 300ms ở query lịch sử giao dịch).
+
+Gỡ lỗi phân tán hiệu quả (Distributed Debugging): Khi một request thất bại giữa các service, việc phải lục tìm file log rời rạc trên từng server Docker là vô cùng khó khăn. Với Distributed Tracing, bạn chỉ cần lấy Trace ID của request lỗi đó tra trên Jaeger để xem toàn bộ lịch sử gọi hàm, mã lỗi chi tiết và ngữ cảnh phát sinh sự cố từ đầu đến cuối.
+
+19. Prometheus và Grafana cho Metrics
+Prometheus: Hệ thống mã nguồn mở chuyên thu thập và lưu trữ các chỉ số số liệu (metrics) dưới dạng chuỗi thời gian (time-series data). Trong các microservices viết bằng Go, ứng dụng sẽ chủ động mở một endpoint (ví dụ: /metrics) để Prometheus định kỳ "cào" (scrape) dữ liệu về hiệu năng hệ thống.
+
+Grafana: Công cụ trực quan hóa dữ liệu hàng đầu. Nó kết nối trực tiếp với Prometheus (và các nguồn dữ liệu khác) để biến các con số khô khan thành các biểu đồ (dashboard) trực quan, đẹp mắt và dễ theo dõi theo thời gian thực.
+
+Tác dụng cụ thể trong project gowallet
+Giám sát tài nguyên hạ tầng Go Services: Theo dõi sát sao lượng tiêu thụ CPU, RAM, số lượng Goroutine đang chạy đồng thời, và trạng thái của kết nối Database/Redis pool để phát hiện sớm các hiện tượng rò rỉ bộ nhớ (memory leak).
+
+Đo lường thông số hiệu năng giao dịch (Performance & Health):
+RPS (Request Per Second): Lượng truy cập và giao dịch gửi đến hệ thống mỗi giây.
+
+Latency (Độ trễ): Thời gian phản hồi của các API (đặc biệt là các chỉ số p95, p99) để biết thao tác nạp/rút tiền có bị chậm hay không.
+
+Error Rate: Tỷ lệ lỗi HTTP/gRPC (ví dụ: số lượng lỗi 5xx hoặc lỗi giao dịch thất bại).
+
 # --- more
 1. Ledger system
 

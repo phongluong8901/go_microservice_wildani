@@ -1,68 +1,194 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
+	_ "github.com/bashocode/gowallet/microservices/api-gateway/docs"
 	"github.com/bashocode/gowallet/microservices/api-gateway/internal/middleware"
 	"github.com/bashocode/gowallet/microservices/api-gateway/internal/proxy"
+	"github.com/bashocode/gowallet/microservices/api-gateway/internal/websocket"
 	"github.com/bashocode/gowallet/microservices/shared/config"
 	"github.com/bashocode/gowallet/microservices/shared/logger"
+	sharedMiddleware "github.com/bashocode/gowallet/microservices/shared/middleware"
+	"github.com/bashocode/gowallet/microservices/shared/security"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func main() {
-	logger.Log.Info("Starting API Gateway on port 8080...")
+// @title           GoWallet API (Microservices)
+// @version         2.0
+// @description     Unified API documentation for all GoWallet microservices proxied through the API Gateway.
+// @termsOfService  http://swagger.io/terms/
 
+// @contact.name   GoWallet API Support
+// @contact.email  support@gowallet.com
+
+// @host      localhost:8080
+// @BasePath  /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
+func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
+	logger.Log.Info("Starting API Gateway on port " + cfg.GatewayPort + "...")
+
+	// 1. Connect to Redis for RateLimiter (fail-open: skip if unavailable)
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     cfg.RedisAddr,
+		Password: "",
+		DB:       0,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		logger.Log.Warn("Redis unavailable — rate limiter will skip. addr=" + cfg.RedisAddr + " err=" + err.Error())
+		rdb = nil
+	} else {
+		logger.Log.Info("Connected to Redis successfully!")
+	}
+
+	// Initialize WebSocket Hub and Redis Subscriber
+	hub := websocket.NewHub()
+	go hub.Run()
+	logger.Log.Info("WebSocket Hub initialized and running")
+
+	var redisSubscriber *websocket.RedisSubscriber
+	if rdb != nil {
+		redisSubscriber = websocket.NewRedisSubscriber(rdb, hub, cfg.WebSocketChannel)
+		go func() {
+			if err := redisSubscriber.Start(); err != nil {
+				logger.Error(context.Background(), "Redis Subscriber stopped", "error", err.Error())
+			}
+		}()
+		logger.Log.Info("WebSocket Redis Subscriber started on channel: " + cfg.WebSocketChannel)
+	} else {
+		logger.Log.Warn("Redis unavailable — WebSocket notifications will not work across multiple instances")
+	}
 
 	// 2. Create reverse proxy for each target microservice
 	authProxy, err := proxy.NewReverseProxy(cfg.AuthServiceURL)
 	if err != nil {
-		logger.Fatal(nil, "Failed to initialize auth proxy", "error", err)
+		logger.Fatal(context.Background(), "Failed to initialize auth proxy", "error", err)
 	}
 
 	userProxy, err := proxy.NewReverseProxy(cfg.UserServiceURL)
 	if err != nil {
-		logger.Fatal(nil, "Failed to initialize user proxy", "error", err)
+		logger.Fatal(context.Background(), "Failed to initialize user proxy", "error", err)
 	}
 
 	walletProxy, err := proxy.NewReverseProxy(cfg.WalletServiceURL)
 	if err != nil {
-		logger.Fatal(nil, "Failed to initialize wallet proxy", "error", err)
+		logger.Fatal(context.Background(), "Failed to initialize wallet proxy", "error", err)
 	}
 
 	ledgerProxy, err := proxy.NewReverseProxy(cfg.LedgerServiceURL)
 	if err != nil {
-		logger.Fatal(nil, "Failed to initialize ledger proxy", "error", err)
+		logger.Fatal(context.Background(), "Failed to initialize ledger proxy", "error", err)
 	}
 
 	transactionProxy, err := proxy.NewReverseProxy(cfg.TransactionServiceURL)
 	if err != nil {
-		logger.Fatal(nil, "Failed to initialize transaction proxy", "error", err)
+		logger.Fatal(context.Background(), "Failed to initialize transaction proxy", "error", err)
 	}
 
 	paymentProxy, err := proxy.NewReverseProxy(cfg.PaymentServiceURL)
 	if err != nil {
-		logger.Fatal(nil, "Failed to initialize payment proxy", "error", err)
+		logger.Fatal(context.Background(), "Failed to initialize payment proxy", "error", err)
+	}
+
+	// Initialize sanitizer for XSS protection
+	sanitizer := security.NewSanitizer()
+
+	// Initialize OpenTelemetry Tracer
+	tp, err := tracing.InitTracer("api-gateway", cfg.OTELCollectorAddr)
+	if err != nil {
+		logger.Log.Warn("Failed to initialize tracer, continuing without tracing: " + err.Error())
+	} else {
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = tp.Shutdown(shutdownCtx)
+		}()
 	}
 
 	r := gin.New()
+
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
+	r.Use(sharedMiddleware.PrometheusMetrics())
+	r.Use(otelgin.Middleware("api-gateway"))
 
-	// Enable CORS Middleware
-	r.Use(middleware.CORSMiddleware())
+	// 3. Register middleware chain (ORDER MATTERS!)
+	//    ErrorHandler must be first so it catches errors from all subsequent middleware
+	r.Use(sharedMiddleware.ErrorHandler())
+	//    CorrelationID assigns a unique ID to every request
+	r.Use(sharedMiddleware.CorrelationID())
+	//    CORS allows browser-based clients
+	r.Use(middleware.CORSMiddleware(cfg.BaseURL))
+	//    Security headers protect against XSS and other browser-based attacks
+	r.Use(sharedMiddleware.SecurityHeaders())
+	//    Sanitize all incoming JSON payloads to strip HTML/script tags
+	r.Use(sharedMiddleware.SanitizeBody(sanitizer))
+	// Metrics endpoint for Prometheus
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
-	// 3. Define proxy routing rules
+	// Health check endpoint
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "healthy",
+			"service": "api-gateway",
+		})
+	})
+
+	r.GET("/live", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "UP"})
+	})
+
+	r.GET("/ready", func(c *gin.Context) {
+		if rdb != nil {
+			if err := rdb.Ping(c.Request.Context()).Err(); err != nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"status": "DOWN", "reason": "Redis cache not responding"})
+				return
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "READY"})
+	})
+
+	//    RateLimiter throttles abusive clients (60 req/min per IP)
+	if rdb != nil {
+		r.Use(sharedMiddleware.RateLimiter(rdb, 60, time.Minute))
+	}
+
+	// Swagger UI — registered before proxy routes so it's excluded from rate limiting
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// WebSocket endpoint (authenticated via query param token)
+	allowedOrigins := websocket.ParseAllowedOrigins(cfg.AllowedOrigins)
+	if rdb != nil {
+		r.GET("/ws", websocket.WebSocketHandler(hub, rdb, cfg.JWTSecret, allowedOrigins))
+		logger.Log.Info("WebSocket endpoint registered at /ws")
+	} else {
+		logger.Log.Warn("WebSocket endpoint not registered — Redis is required for token blacklist checking")
+	}
+
+	// 4. Define proxy routing rules
 	// /api/v1/auth/* is forwarded to Auth Service (login, refresh, logout, Google OAuth)
 	r.Any("/api/v1/auth/*path", func(c *gin.Context) {
-		path := c.Param("path")
-		// Forward Google OAuth requests to user-service, others to auth-service
-		if len(path) >= 7 && path[:7] == "/google" {
-			userProxy.ServeHTTP(c.Writer, c.Request)
-			return
-		}
 		authProxy.ServeHTTP(c.Writer, c.Request)
 	})
 
@@ -96,16 +222,48 @@ func main() {
 		paymentProxy.ServeHTTP(c.Writer, c.Request)
 	})
 
-	// Health check endpoint
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "healthy",
-			"service": "api-gateway",
-		})
-	})
-
-	logger.Log.Info("API Gateway listening on port " + cfg.GatewayPort + "...")
-	if err := r.Run(":" + cfg.GatewayPort); err != nil {
-		logger.Fatal(nil, "Gateway failed", "error", err)
+	srv := &http.Server{
+		Addr:              ":" + cfg.GatewayPort,
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
+
+	go func() {
+		logger.Log.Info("API Gateway listening on port " + cfg.GatewayPort + "...")
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Fatal(context.Background(), "Server listen failed", "error", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Log.Info("Shutdown signal received. Starting graceful shutdown...")
+
+	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancelShutdown()
+
+	if err := srv.Shutdown(ctxShutdown); err != nil {
+		logger.Error(ctxShutdown, "HTTP Server forced to shutdown", "error", err.Error())
+	} else {
+		logger.Log.Info("HTTP Server closed cleanly.")
+	}
+
+	logger.Log.Info("Stopping WebSocket Redis Subscriber...")
+	if redisSubscriber != nil {
+		redisSubscriber.Stop()
+	}
+
+	logger.Log.Info("Closing Redis connection...")
+	if rdb != nil {
+		if err := rdb.Close(); err != nil {
+			logger.Error(ctxShutdown, "Failed to close Redis client", "error", err.Error())
+		}
+	}
+
+	logger.Log.Info("API Gateway successfully stopped.")
 }
