@@ -153,3 +153,129 @@ git checkout -b main
 git add .
 git commit -m "change: first"
 git push -u origin main
+
+# --- -
+git checkout -b p25_DLQ
+git add .
+git commit -m "change: first"
+git push -u origin p25_DLQ
+
+# --- -
+git checkout -b p26_scheduler_service
+git add .
+git commit -m "change: first"
+git push -u origin p26_scheduler_service
+
+# --- -
+git checkout -b p27_outbox_pattern_SAGA
+git add .
+git commit -m "change: first"
+git push -u origin p27_outbox_pattern_SAGA
+
+# --- -
+git checkout -b p28_rabbitMQ_event
+git add .
+git commit -m "change: first"
+git push -u origin p28_rabbitMQ_event
+
+# --- -
+git checkout -b p29_event_driven
+git add .
+git commit -m "change: first"
+git push -u origin p29_event_driven
+
+# --- -
+git checkout -b p30_notification_service
+git add .
+git commit -m "change: first"
+git push -u origin p30_notification_service
+
+# --- -
+git checkout -b p31_audit_Mongo
+git add .
+git commit -m "change: first"
+git push -u origin p31_audit_Mongo
+
+# --- -
+git checkout -b p32_MiniIO
+git add .
+git commit -m "change: first"
+git push -u origin p32_MiniIO
+
+# --- -
+git checkout -b p33_redis_cache_aside
+git add .
+git commit -m "change: first"
+git push -u origin p33_redis_cache_aside
+
+# --- -
+git checkout -b p34_graceful_shutdown
+git add .
+git commit -m "change: first"
+git push -u origin p34_graceful_shutdown
+
+# --- -
+git checkout -b p35_XSS_protection
+git add .
+git commit -m "change: first"
+git push -u origin p35_XSS_protection
+
+# --- -
+git checkout -b p36_CSRF_protection
+git add .
+git commit -m "change: first"
+git push -u origin p36_CSRF_protection
+
+# --- -
+git checkout -b p37_TLS_gRPC
+git add .
+git commit -m "change: first"
+git push -u origin p37_TLS_gRPC
+
+# --- -
+git checkout -b p38_websocket_realtimeNotification
+git add .
+git commit -m "change: first"
+git push -u origin p38_websocket_realtimeNotification
+
+# --- -
+git checkout -b p39_database_indexing
+git add .
+git commit -m "change: first"
+git push -u origin p39_database_indexing
+
+# --- -
+git checkout -b p40_cursor_pagination
+git add .
+git commit -m "change: first"
+git push -u origin p40_cursor_pagination
+
+# --- -
+git checkout -b p41_OpenTelemetry_Jaeger
+git add .
+git commit -m "change: first"
+git push -u origin p41_OpenTelemetry_Jaeger
+
+# --- -
+git checkout -b p42_promtheus_grafana
+git add .
+git commit -m "change: first"
+git push -u origin p42_promtheus_grafana
+
+# --- -
+git checkout -b p43_ELK_elastichserch_logstash_kibana
+git add .
+git commit -m "change: first"
+git push -u origin p43_ELK_elastichserch_logstash_kibana
+
+# --- -
+git checkout -b p44_code_analysis
+git add .
+git commit -m "change: first"
+git push -u origin p44_code_analysis
+
+# --- -
+git checkout -b p45_CICD
+git add .
+git commit -m "change: first"
+git push -u origin p45_CICD
