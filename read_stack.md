@@ -349,6 +349,18 @@ Quản lý nợ kỹ thuật (Technical Debt) & Code Smells: Chỉ ra các đo�
 
 Chuẩn hóa quy chuẩn code (Quality Gate): Tích hợp vào quy trình CI/CD (GitHub Actions). Nếu mã nguồn không đạt tiêu chuẩn chất lượng do SonarQube đặt ra (ví dụ: phát hiện lỗi bảo mật mức độ cao), hệ thống sẽ tự động chặn không cho phép merge code vào nhánh chính.
 
+22. Jenkins cho Self-Hosted Enterprise Pipeline
+Hệ thống tự động hóa mã nguồn mở hàng đầu dùng để thiết lập các quy trình CI/CD (Continuous Integration / Continuous Deployment). Phiên bản "self-hosted" nghĩa là hệ thống được cài đặt và vận hành trực tiếp trên máy chủ riêng của doanh nghiệp hoặc hạ tầng cá nhân thay vì dùng dịch vụ đám mây bên thứ ba, mang lại quyền kiểm soát tuyệt đối về bảo mật và tài nguyên.
+
+Tác dụng cụ thể trong project gowallet
+Tự động hóa quy trình CI/CD: Ngay khi có lệnh push code lên nhánh chính, Jenkins tự động kích hoạt pipeline để biên dịch mã nguồn Go, thực thi toàn bộ bộ Unit Test và Integration Test để ngăn chặn mã lỗi lọt vào hệ thống.
+
+dóng gói container tự động: Tự động hóa công đoạn build các microservices của dự án thành các Docker image tối ưu và đẩy lên Image Registry nội bộ.
+
+Triển khai an toàn (Automated Deployment): Tự động kết nối vào máy chủ từ xa, thực hiện thao tác cập nhật phiên bản mới, cấu hình lại môi trường và khởi động lại các container mà không cần thao tác thủ công trên terminal.
+
+Điều phối quy trình kiểm thử chất lượng: Đóng vai trò là "nhạc trưởng" trung tâm: gọi SonarQube quét mã nguồn, chạy kiểm thử tải, và gửi thông báo kết quả (thành công hoặc thất bại) tức thì về cho đội ngũ phát triển qua các kênh liên lạc nội bộ.
+
 # --- more
 1. Ledger system
 
