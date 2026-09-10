@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -22,7 +24,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
+
+func hashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
 
 type AuthService interface {
 	Login(ctx context.Context, req model.LoginRequest) (*model.LoginResponse, error)
@@ -37,14 +46,22 @@ type authService struct {
 	rtRepo       repository.RefreshTokenRepository
 	userClient   pb.UserServiceClient
 	walletClient pbWallet.WalletServiceClient
+	jwtSecret    string
 }
 
-func NewAuthService(rdb *redis.Client, rtRepo repository.RefreshTokenRepository, userClient pb.UserServiceClient, walletClient pbWallet.WalletServiceClient) AuthService {
+func NewAuthService(
+	rdb *redis.Client,
+	rtRepo repository.RefreshTokenRepository,
+	userClient pb.UserServiceClient,
+	walletClient pbWallet.WalletServiceClient,
+	jwtSecret string,
+) AuthService {
 	return &authService{
 		rdb:          rdb,
 		rtRepo:       rtRepo,
 		userClient:   userClient,
 		walletClient: walletClient,
+		jwtSecret:    jwtSecret,
 	}
 }
 
@@ -67,22 +84,36 @@ func (s *authService) Login(ctx context.Context, req model.LoginRequest) (*model
 	}
 
 	// generate access token 15 minutes
-	accessToken, err := sharedAuth.GenerateToken(userResp.GetId(), userResp.GetEmail(), userResp.GetRole(), 15*time.Minute)
+	accessToken, err := sharedAuth.GenerateTokenWithType(
+		s.jwtSecret,
+		userResp.GetId(),
+		userResp.GetEmail(),
+		userResp.GetRole(),
+		"access",
+		15*time.Minute,
+	)
 	if err != nil {
 		return nil, customErr.ErrInternalServer
 	}
 
 	// generate refresh token 7 days
-	refreshToken, err := sharedAuth.GenerateToken(userResp.GetId(), userResp.GetEmail(), userResp.GetRole(), 7*24*time.Hour)
+	refreshToken, err := sharedAuth.GenerateTokenWithType(
+		s.jwtSecret,
+		userResp.GetId(),
+		userResp.GetEmail(),
+		userResp.GetRole(),
+		"refresh",
+		7*24*time.Hour,
+	)
 	if err != nil {
 		return nil, customErr.ErrInternalServer
 	}
 
-	// save token to db
+	// save hashed token to db
 	rt := &model.RefreshToken{
 		ID:        uuid.New().String(),
 		UserID:    userResp.GetId(),
-		Token:     refreshToken,
+		Token:     hashToken(refreshToken),
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 		Revoked:   false,
 	}
@@ -90,7 +121,7 @@ func (s *authService) Login(ctx context.Context, req model.LoginRequest) (*model
 		return nil, customErr.ErrInternalServer
 	}
 
-	// return the tokens
+	// return the raw tokens to user
 	return &model.LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -98,8 +129,10 @@ func (s *authService) Login(ctx context.Context, req model.LoginRequest) (*model
 }
 
 func (s *authService) RefreshToken(ctx context.Context, oldTokenString string) (*model.LoginResponse, error) {
+	hashedOldToken := hashToken(oldTokenString)
+
 	// 1. Look up token in db
-	rt, err := s.rtRepo.GetByToken(ctx, oldTokenString)
+	rt, err := s.rtRepo.GetByToken(ctx, hashedOldToken)
 	if err != nil {
 		return nil, customErr.NewAppError(http.StatusUnauthorized, "INVALID_REFRESH_TOKEN", "Refresh token invalid.")
 	}
@@ -116,7 +149,7 @@ func (s *authService) RefreshToken(ctx context.Context, oldTokenString string) (
 	}
 
 	// 4. Revoke old token
-	if err := s.rtRepo.Revoke(ctx, oldTokenString); err != nil {
+	if err := s.rtRepo.Revoke(ctx, hashedOldToken); err != nil {
 		return nil, customErr.ErrInternalServer
 	}
 
@@ -127,12 +160,26 @@ func (s *authService) RefreshToken(ctx context.Context, oldTokenString string) (
 	}
 
 	// 6. Generate access token & new refresh token
-	newAccessToken, err := sharedAuth.GenerateToken(userResp.GetId(), userResp.GetEmail(), userResp.GetRole(), 15*time.Minute)
+	newAccessToken, err := sharedAuth.GenerateTokenWithType(
+		s.jwtSecret,
+		userResp.GetId(),
+		userResp.GetEmail(),
+		userResp.GetRole(),
+		"access",
+		15*time.Minute,
+	)
 	if err != nil {
 		return nil, customErr.ErrInternalServer
 	}
 
-	newRefreshTokenString, err := sharedAuth.GenerateToken(userResp.GetId(), userResp.GetEmail(), userResp.GetRole(), 7*24*time.Hour)
+	newRefreshTokenString, err := sharedAuth.GenerateTokenWithType(
+		s.jwtSecret,
+		userResp.GetId(),
+		userResp.GetEmail(),
+		userResp.GetRole(),
+		"refresh",
+		7*24*time.Hour,
+	)
 	if err != nil {
 		return nil, customErr.ErrInternalServer
 	}
@@ -141,7 +188,7 @@ func (s *authService) RefreshToken(ctx context.Context, oldTokenString string) (
 	newRT := &model.RefreshToken{
 		ID:        uuid.New().String(),
 		UserID:    userResp.GetId(),
-		Token:     newRefreshTokenString,
+		Token:     hashToken(newRefreshTokenString),
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 		Revoked:   false,
 	}
@@ -157,7 +204,7 @@ func (s *authService) RefreshToken(ctx context.Context, oldTokenString string) (
 
 func (s *authService) Logout(ctx context.Context, tokenString string) error {
 	// Validate token
-	claims, err := sharedAuth.ValidateToken(tokenString)
+	claims, err := sharedAuth.ValidateToken(s.jwtSecret, tokenString)
 	if err != nil {
 		return customErr.NewAppError(http.StatusUnauthorized, "INVALID_TOKEN", "token is invalid or expired.")
 	}
@@ -228,12 +275,10 @@ func (s *authService) GetGoogleLoginURL(ctx context.Context) (string, error) {
 
 func (s *authService) HandleGoogleCallback(ctx context.Context, code string, state string) (*model.LoginResponse, error) {
 	stateKey := fmt.Sprintf("oauth:state:%s", state)
-	val, err := s.rdb.Get(ctx, stateKey).Result()
+	val, err := s.rdb.GetDel(ctx, stateKey).Result()
 	if err != nil || val != "valid" {
 		return nil, customErr.NewAppError(http.StatusBadRequest, "INVALID_STATE", "invalid or expired OAuth state - possible CSRF attack")
 	}
-
-	s.rdb.Del(ctx, stateKey)
 
 	config := s.getOAuthConfig()
 
@@ -249,14 +294,36 @@ func (s *authService) HandleGoogleCallback(ctx context.Context, code string, sta
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, customErr.NewAppError(
+			http.StatusBadGateway,
+			"OAUTH_PROVIDER_ERROR",
+			"OAuth provider returned non-200 status code",
+		)
+	}
+
+
 	var googleUser googleUserInfo
 	if err := json.NewDecoder(resp.Body).Decode(&googleUser); err != nil {
 		return nil, fmt.Errorf("failed to decode user info: %w", err)
 	}
 
+	if !googleUser.VerifiedEmail {
+		return nil, customErr.NewAppError(
+			http.StatusBadRequest,
+			"UNVERIFIED_EMAIL",
+			"Google account email is not verified.",
+		)
+	}
+
 	// Try to get user by email
 	userResp, err := s.userClient.GetUserByEmail(ctx, &pb.GetUserByEmailRequest{Email: googleUser.Email})
 	if err != nil {
+		st, ok := status.FromError(err)
+		if !ok || (st.Code() != codes.NotFound && st.Message() != "sql: no rows in result set") {
+			logger.Log.Error("gRPC error looking up user by email during OAuth login", "error", err)
+			return nil, customErr.ErrInternalServer
+		}
 		// User not found — create via gRPC
 		userResp, err = s.userClient.CreateUser(ctx, &pb.CreateUserRequest{
 			FullName:      googleUser.Name,
@@ -286,12 +353,26 @@ func (s *authService) HandleGoogleCallback(ctx context.Context, code string, sta
 	}
 
 	// Generate tokens
-	accessToken, err := sharedAuth.GenerateToken(userResp.GetId(), userResp.GetEmail(), userResp.GetRole(), 15*time.Minute)
+	accessToken, err := sharedAuth.GenerateTokenWithType(
+		s.jwtSecret,
+		userResp.GetId(),
+		userResp.GetEmail(),
+		userResp.GetRole(),
+		"access",
+		15*time.Minute,
+	)
 	if err != nil {
 		return nil, customErr.ErrInternalServer
 	}
 
-	refreshToken, err := sharedAuth.GenerateToken(userResp.GetId(), userResp.GetEmail(), userResp.GetRole(), 7*24*time.Hour)
+	refreshToken, err := sharedAuth.GenerateTokenWithType(
+		s.jwtSecret,
+		userResp.GetId(),
+		userResp.GetEmail(),
+		userResp.GetRole(),
+		"refresh",
+		7*24*time.Hour,
+	)
 	if err != nil {
 		return nil, customErr.ErrInternalServer
 	}
@@ -299,7 +380,7 @@ func (s *authService) HandleGoogleCallback(ctx context.Context, code string, sta
 	newRT := &model.RefreshToken{
 		ID:        uuid.New().String(),
 		UserID:    userResp.GetId(),
-		Token:     refreshToken,
+		Token:     hashToken(refreshToken),
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 		Revoked:   false,
 	}
