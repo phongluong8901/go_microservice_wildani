@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-
+	"github.com/bashocode/gowallet/microservices/wallet-service/internal/utils"
 	"github.com/bashocode/gowallet/microservices/wallet-service/internal/wallet/model"
 	"github.com/shopspring/decimal"
 )
@@ -13,6 +13,7 @@ type WalletRepository interface {
 	GetByUserID(ctx context.Context, userID string) (*model.Wallet, error)
 	UpdateBalanceWithOwnerCheck(ctx context.Context, userID string, amount decimal.Decimal, expectedVersion int32) (*model.Wallet, error)
 	Create(ctx context.Context, w *model.Wallet) error
+	ReconcileAll(ctx context.Context) (mismatches int, total int, err error)
 }
 
 type mysqlWalletRepository struct {
@@ -32,16 +33,18 @@ func (r *mysqlWalletRepository) Create(ctx context.Context, w *model.Wallet) err
 func (r *mysqlWalletRepository) GetByUserID(ctx context.Context, userID string) (*model.Wallet, error) {
 	query := `SELECT id, user_id, balance, currency, status, version, created_at, updated_at FROM wallets WHERE user_id = ? AND deleted_at IS NULL`
 	w := &model.Wallet{}
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(
-		&w.ID,
-		&w.UserID,
-		&w.Balance,
-		&w.Currency,
-		&w.Status,
-		&w.Version,
-		&w.CreatedAt,
-		&w.UpdatedAt,
-	)
+	err := utils.RetryWithBackoff(ctx, 3, func() error {
+		return r.db.QueryRowContext(ctx, query, userID).Scan(
+			&w.ID,
+			&w.UserID,
+			&w.Balance,
+			&w.Currency,
+			&w.Status,
+			&w.Version,
+			&w.CreatedAt,
+			&w.UpdatedAt,
+		)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -89,4 +92,16 @@ func (r *mysqlWalletRepository) UpdateBalanceWithOwnerCheck(ctx context.Context,
 		return nil, err
 	}
 	return w, nil
+}
+
+// ReconcileAll scans all wallets and counts those whose balance is negative
+// (an invariant violation). Returns (mismatches, total, err).
+func (r *mysqlWalletRepository) ReconcileAll(ctx context.Context) (int, int, error) {
+	query := `SELECT COUNT(*) as total, COALESCE(SUM(CASE WHEN balance < 0 THEN 1 ELSE 0 END), 0) as mismatches FROM wallets WHERE deleted_at IS NULL`
+	var total, mismatches int
+	err := r.db.QueryRowContext(ctx, query).Scan(&total, &mismatches)
+	if err != nil {
+		return 0, 0, err
+	}
+	return mismatches, total, nil
 }

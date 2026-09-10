@@ -19,9 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	UserService_GetUserByID_FullMethodName    = "/user.UserService/GetUserByID"
-	UserService_GetUserByEmail_FullMethodName = "/user.UserService/GetUserByEmail"
-	UserService_CreateUser_FullMethodName     = "/user.UserService/CreateUser"
+	UserService_GetUserByID_FullMethodName          = "/user.UserService/GetUserByID"
+	UserService_GetUserByEmail_FullMethodName       = "/user.UserService/GetUserByEmail"
+	UserService_CreateUser_FullMethodName           = "/user.UserService/CreateUser"
+	UserService_CleanupExpiredOTPs_FullMethodName   = "/user.UserService/CleanupExpiredOTPs"
+	UserService_FetchEventsToArchive_FullMethodName = "/user.UserService/FetchEventsToArchive"
+	UserService_DeleteArchivedEvents_FullMethodName = "/user.UserService/DeleteArchivedEvents"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -31,6 +34,9 @@ type UserServiceClient interface {
 	GetUserByID(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	GetUserByEmail(ctx context.Context, in *GetUserByEmailRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*UserResponse, error)
+	CleanupExpiredOTPs(ctx context.Context, in *CleanupRequest, opts ...grpc.CallOption) (*CleanupResponse, error)
+	FetchEventsToArchive(ctx context.Context, in *FetchEventsToArchiveRequest, opts ...grpc.CallOption) (*FetchEventsToArchiveResponse, error)
+	DeleteArchivedEvents(ctx context.Context, in *DeleteArchivedEventsRequest, opts ...grpc.CallOption) (*DeleteArchivedEventsResponse, error)
 }
 
 type userServiceClient struct {
@@ -71,6 +77,36 @@ func (c *userServiceClient) CreateUser(ctx context.Context, in *CreateUserReques
 	return out, nil
 }
 
+func (c *userServiceClient) CleanupExpiredOTPs(ctx context.Context, in *CleanupRequest, opts ...grpc.CallOption) (*CleanupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CleanupResponse)
+	err := c.cc.Invoke(ctx, UserService_CleanupExpiredOTPs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) FetchEventsToArchive(ctx context.Context, in *FetchEventsToArchiveRequest, opts ...grpc.CallOption) (*FetchEventsToArchiveResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FetchEventsToArchiveResponse)
+	err := c.cc.Invoke(ctx, UserService_FetchEventsToArchive_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) DeleteArchivedEvents(ctx context.Context, in *DeleteArchivedEventsRequest, opts ...grpc.CallOption) (*DeleteArchivedEventsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteArchivedEventsResponse)
+	err := c.cc.Invoke(ctx, UserService_DeleteArchivedEvents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -78,6 +114,9 @@ type UserServiceServer interface {
 	GetUserByID(context.Context, *GetUserRequest) (*UserResponse, error)
 	GetUserByEmail(context.Context, *GetUserByEmailRequest) (*UserResponse, error)
 	CreateUser(context.Context, *CreateUserRequest) (*UserResponse, error)
+	CleanupExpiredOTPs(context.Context, *CleanupRequest) (*CleanupResponse, error)
+	FetchEventsToArchive(context.Context, *FetchEventsToArchiveRequest) (*FetchEventsToArchiveResponse, error)
+	DeleteArchivedEvents(context.Context, *DeleteArchivedEventsRequest) (*DeleteArchivedEventsResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -96,6 +135,15 @@ func (UnimplementedUserServiceServer) GetUserByEmail(context.Context, *GetUserBy
 }
 func (UnimplementedUserServiceServer) CreateUser(context.Context, *CreateUserRequest) (*UserResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateUser not implemented")
+}
+func (UnimplementedUserServiceServer) CleanupExpiredOTPs(context.Context, *CleanupRequest) (*CleanupResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CleanupExpiredOTPs not implemented")
+}
+func (UnimplementedUserServiceServer) FetchEventsToArchive(context.Context, *FetchEventsToArchiveRequest) (*FetchEventsToArchiveResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method FetchEventsToArchive not implemented")
+}
+func (UnimplementedUserServiceServer) DeleteArchivedEvents(context.Context, *DeleteArchivedEventsRequest) (*DeleteArchivedEventsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteArchivedEvents not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -172,6 +220,60 @@ func _UserService_CreateUser_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_CleanupExpiredOTPs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CleanupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CleanupExpiredOTPs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CleanupExpiredOTPs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CleanupExpiredOTPs(ctx, req.(*CleanupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_FetchEventsToArchive_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FetchEventsToArchiveRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).FetchEventsToArchive(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_FetchEventsToArchive_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).FetchEventsToArchive(ctx, req.(*FetchEventsToArchiveRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_DeleteArchivedEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteArchivedEventsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).DeleteArchivedEvents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_DeleteArchivedEvents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).DeleteArchivedEvents(ctx, req.(*DeleteArchivedEventsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -190,6 +292,18 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateUser",
 			Handler:    _UserService_CreateUser_Handler,
+		},
+		{
+			MethodName: "CleanupExpiredOTPs",
+			Handler:    _UserService_CleanupExpiredOTPs_Handler,
+		},
+		{
+			MethodName: "FetchEventsToArchive",
+			Handler:    _UserService_FetchEventsToArchive_Handler,
+		},
+		{
+			MethodName: "DeleteArchivedEvents",
+			Handler:    _UserService_DeleteArchivedEvents_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

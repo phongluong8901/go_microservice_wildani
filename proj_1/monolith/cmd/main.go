@@ -87,7 +87,7 @@ func main() {
 	//inject db to user service for transaction
 	uSvc := userService.NewUserService(db, rdb, uRepo, wRepo, otpRepo, emailSender)
 	wSvc := walletService.NewWalletService(wRepo, rdb)
-	tSvc := txService.NewTransactionService(db, rdb, tRepo, uRepo, wRepo, lRepo)
+	tSvc := txService.NewTransactionService(db, rdb, tRepo, uRepo, wRepo, lRepo, cfg.WebhookSecret)
 	lSvc := ledgerService.NewLedgerService(lRepo, wRepo)
 
 	// handler layer
@@ -128,6 +128,14 @@ func main() {
 		v1.GET("/auth/google/login", uHandler.GoogleLogin)
 		v1.GET("/auth/google/callback", uHandler.GoogleCallback)
 
+		internal := v1.Group("")
+		internal.Use(middleware.APIKeyMiddleware(cfg.WebhookSecret))
+		{
+			internal.POST("/wallets/inquiry", wHandler.EmailInquiry)
+			internal.POST("/transfers/external", tHandler.ReceiveExternalTransfer)
+			internal.GET("/transfers/external/:id/status", tHandler.GetExternalTransferStatus)
+		}
+
 		// Protected routes (requires valid JWT token)
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware(rdb))
@@ -162,7 +170,7 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":8000",
 		Handler: r,
 	}
 
@@ -175,10 +183,10 @@ func main() {
 
 	// start server
 	//Graceful Shutdown (Tắt ứng dụng an toàn). Mục đích là để server không bị ngắt đột ngột làm hỏng dữ liệu hoặc cắt đứt ngang các request mà người dùng đang gửi lên.
-	logger.Log.Info("Server running on Port 8080...")
+	logger.Log.Info("Server running on Port 8000...")
 	// graceful shutdown - wait for signal from os
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)s
 	//Lệnh <-quit có nhiệm vụ chặn (block) luồng chính tại đây. Nhờ có nó, ứng dụng cứ tiếp tục chạy bình thường phục vụ người dùng cho đến khi có tín hiệu dừng được gửi tới.
 	<-quit
 

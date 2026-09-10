@@ -1,11 +1,18 @@
 package handler
 
 import (
+	"bytes"
+	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"net/http"
-	"os"
 	"path/filepath"
+	"time"
 
 	customErr "github.com/bashocode/gowallet/microservices/shared/errors"
+	"github.com/bashocode/gowallet/microservices/shared/logger"
+	"github.com/bashocode/gowallet/microservices/shared/storage"
 	"github.com/bashocode/gowallet/microservices/shared/utils"
 	"github.com/bashocode/gowallet/microservices/user-service/internal/user/model"
 	"github.com/bashocode/gowallet/microservices/user-service/internal/user/service"
@@ -13,11 +20,15 @@ import (
 )
 
 type UserHandler struct {
-	svc service.UserService
+	svc     service.UserService
+	storage storage.ObjectStorage
 }
 
-func NewUserHandler(svc service.UserService) *UserHandler {
-	return &UserHandler{svc: svc}
+func NewUserHandler(svc service.UserService, storage storage.ObjectStorage) *UserHandler {
+	return &UserHandler{
+		svc:     svc,
+		storage: storage,
+	}
 }
 
 func (h *UserHandler) Register(c *gin.Context) {
@@ -38,6 +49,17 @@ func (h *UserHandler) Register(c *gin.Context) {
 
 func (h *UserHandler) GetProfile(c *gin.Context) {
 	id := c.Param("id")
+	authUserID, exist := c.Get("user_id")
+	role, _ := c.Get("role")
+	if !exist {
+		c.Error(customErr.NewAppError(http.StatusUnauthorized, "UNAUTHORIZED", "User context not found"))
+		return
+	}
+	if role != "admin" && fmt.Sprintf("%v", authUserID) != id {
+		c.Error(customErr.NewAppError(http.StatusForbidden, "FORBIDDEN", "You do not have permission to view this profile"))
+		return
+	}
+
 	user, err := h.svc.GetProfile(c.Request.Context(), id)
 	if err != nil {
 		c.Error(err)
@@ -49,6 +71,13 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	id := c.Param("id")
+	authUserID, exist := c.Get("user_id")
+	role, _ := c.Get("role")
+	if exist && role != "admin" && fmt.Sprintf("%v", authUserID) != id {
+		c.Error(customErr.NewAppError(http.StatusForbidden, "FORBIDDEN", "You do not have permission to update this profile"))
+		return
+	}
+
 	var req model.UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.Error(customErr.NewAppError(http.StatusBadRequest, "INVALID_INPUT", err.Error()))
@@ -102,36 +131,82 @@ func (h *UserHandler) UploadAvatar(c *gin.Context) {
 		return
 	}
 
-	file, err := c.FormFile("avatar")
+	fileHeader, err := c.FormFile("avatar")
 	if err != nil {
 		c.Error(customErr.NewAppError(http.StatusBadRequest, "INVALID_FILE", "Please upload an avatar."))
 		return
 	}
 
-	if file.Size > 2*1024*1024 {
+	if fileHeader.Size > 2*1024*1024 {
 		c.Error(customErr.NewAppError(http.StatusBadRequest, "INVALID_FILE", "File size must be less than 2MB."))
 		return
 	}
 
-	ext := filepath.Ext(file.Filename)
-	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
-		c.Error(customErr.NewAppError(http.StatusBadRequest, "INVALID_FILE", "Invalid file format. Please upload a JPG, JPEG, or PNG image."))
+	file, err := fileHeader.Open()
+	if err != nil {
+		c.Error(customErr.NewAppError(http.StatusBadRequest, "INVALID_FILE", "Failed to read file"))
+		return
+	}
+	defer file.Close()
+
+	// Inspect decoded content; do not trust header or file extension
+	img, format, err := image.Decode(file)
+	if err != nil {
+		c.Error(customErr.NewAppError(
+			http.StatusBadRequest,
+			"INVALID_IMAGE",
+			"Uploaded file is not a valid image or is corrupted.",
+		))
 		return
 	}
 
-	uploadDir := "./uploads"
-	_ = os.MkdirAll(uploadDir, os.ModePerm)
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+	if width > 4096 || height > 4096 {
+		c.Error(customErr.NewAppError(
+			http.StatusBadRequest,
+			"IMAGE_TOO_LARGE",
+			"Image dimensions must not exceed 4096x4096 pixels.",
+		))
+		return
+	}
 
-	filename := userIDStr + ext
-	dst := filepath.Join(uploadDir, filename)
+	// Re-encode image into a clean buffer to strip EXIF and embedded scripts
+	var buf bytes.Buffer
+	var mimeType string
+	var ext string
 
-	if err := c.SaveUploadedFile(file, dst); err != nil {
+	switch format {
+	case "png":
+		if err := png.Encode(&buf, img); err != nil {
+			c.Error(customErr.ErrInternalServer)
+			return
+		}
+		mimeType = "image/png"
+		ext = ".png"
+	case "jpeg":
+		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 85}); err != nil {
+			c.Error(customErr.ErrInternalServer)
+			return
+		}
+		mimeType = "image/jpeg"
+		ext = ".jpg"
+	default:
+		c.Error(customErr.NewAppError(http.StatusBadRequest, "INVALID_FORMAT", "Only PNG and JPEG images are allowed."))
+		return
+	}
+
+	objectName := fmt.Sprintf("avatar-%s-%d%s", userIDStr, time.Now().Unix(), ext)
+	avatarURL, err := h.storage.UploadStream(c.Request.Context(), "avatars", objectName, &buf, int64(buf.Len()), mimeType)
+	if err != nil {
+		logger.Error(c.Request.Context(), "Failed to upload avatar to MinIO", "error", err.Error())
 		c.Error(customErr.ErrInternalServer)
 		return
 	}
 
-	avatarURL := "/uploads/" + filename
 	if err := h.svc.UpdateAvatar(c.Request.Context(), userIDStr, avatarURL); err != nil {
+		logger.Error(c.Request.Context(), "Failed to update avatar in database", "error", err.Error())
 		c.Error(customErr.ErrInternalServer)
 		return
 	}

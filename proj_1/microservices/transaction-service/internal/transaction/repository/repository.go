@@ -3,15 +3,24 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
+	"time"
 
 	"github.com/bashocode/gowallet/microservices/transaction-service/internal/transaction/model"
 )
 
 type TransactionRepository interface {
 	Create(ctx context.Context, t *model.Transaction) error
+	CreateTx(ctx context.Context, tx *sql.Tx, t *model.Transaction) error
 	GetByIdempotencyKey(ctx context.Context, key string) (*model.Transaction, error)
-	GetHistory(ctx context.Context, walletID string, params model.PaginationParams) ([]model.Transaction, int64, error)
+	GetHistory(ctx context.Context, walletID string, params model.PaginationParams) ([]model.Transaction, int64, bool, error)
 	UpdateStatus(ctx context.Context, id, status string) error
+	UpdateStatusTx(ctx context.Context, tx *sql.Tx, id, status string) error
+	CountToday(ctx context.Context) (int64, error)
+	CreateOutboxTx(ctx context.Context, tx *sql.Tx, event *model.OutboxEvent) error
+	FetchEventsToArchive(ctx context.Context, minAge time.Duration, limit int) ([]model.OutboxEvent, error)
+	DeleteArchivedEvents(ctx context.Context, ids []string) error
 }
 
 type mysqlTransactionRepository struct {
@@ -28,16 +37,24 @@ func (r *mysqlTransactionRepository) Create(ctx context.Context, t *model.Transa
 	return err
 }
 
+func (r *mysqlTransactionRepository) CreateTx(ctx context.Context, tx *sql.Tx, t *model.Transaction) error {
+	query := `INSERT INTO transactions (id, sender_wallet_id, receiver_wallet_id, amount, description, idempotency_key, status) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	_, err := tx.ExecContext(ctx, query, t.ID, t.SenderWalletID, t.ReceiverWalletID, t.Amount, t.Description, t.IdempotencyKey, t.Status)
+	return err
+}
+
 func (r *mysqlTransactionRepository) GetByIdempotencyKey(ctx context.Context, key string) (*model.Transaction, error) {
 	query := `SELECT id, sender_wallet_id, receiver_wallet_id, amount, description, idempotency_key, status, created_at FROM transactions WHERE idempotency_key = ?`
 	t := &model.Transaction{}
 	var sender sql.NullString
+	var receiver sql.NullString
+	var desc sql.NullString
 	err := r.db.QueryRowContext(ctx, query, key).Scan(
 		&t.ID,
 		&sender,
-		&t.ReceiverWalletID,
+		&receiver,
 		&t.Amount,
-		&t.Description,
+		&desc,
 		&t.IdempotencyKey,
 		&t.Status,
 		&t.CreatedAt,
@@ -50,6 +67,12 @@ func (r *mysqlTransactionRepository) GetByIdempotencyKey(ctx context.Context, ke
 	if sender.Valid {
 		t.SenderWalletID = &sender.String
 	}
+	if receiver.Valid {
+		t.ReceiverWalletID = receiver.String
+	}
+	if desc.Valid {
+		t.Description = desc.String
+	}
 
 	return t, nil
 }
@@ -60,8 +83,37 @@ func (r *mysqlTransactionRepository) UpdateStatus(ctx context.Context, id, statu
 	return err
 }
 
-func (r *mysqlTransactionRepository) GetHistory(ctx context.Context, walletID string, params model.PaginationParams) ([]model.Transaction, int64, error) {
-	// counting total data for pagination meta
+func (r *mysqlTransactionRepository) UpdateStatusTx(ctx context.Context, tx *sql.Tx, id, status string) error {
+	query := `UPDATE transactions SET status = ? WHERE id = ?`
+	_, err := tx.ExecContext(ctx, query, status, id)
+	return err
+}
+
+func (r *mysqlTransactionRepository) CreateOutboxTx(ctx context.Context, tx *sql.Tx, event *model.OutboxEvent) error {
+	query := `INSERT INTO outbox_events (id, event_type, payload, status) VALUES (?, ?, ?, ?)`
+	_, err := tx.ExecContext(ctx, query, event.ID, event.EventType, event.Payload, event.Status)
+	return err
+}
+
+// CountToday returns the number of transactions created since UTC midnight today.
+func (r *mysqlTransactionRepository) CountToday(ctx context.Context) (int64, error) {
+	query := `SELECT COUNT(*) FROM transactions WHERE created_at >= DATE(UTC_TIMESTAMP())`
+	var count int64
+	err := r.db.QueryRowContext(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *mysqlTransactionRepository) GetHistory(ctx context.Context, walletID string, params model.PaginationParams) ([]model.Transaction, int64, bool, error) {
+	if params.HasCursor() && params.Sort == "created_at" {
+		return r.getHistoryCursor(ctx, walletID, params)
+	}
+	return r.getHistoryOffset(ctx, walletID, params)
+}
+
+func (r *mysqlTransactionRepository) getHistoryOffset(ctx context.Context, walletID string, params model.PaginationParams) ([]model.Transaction, int64, bool, error) {
 	countQuery := `SELECT COUNT(*) FROM transactions WHERE (sender_wallet_id = ? OR receiver_wallet_id = ?)`
 	var total int64
 	var err error
@@ -74,7 +126,7 @@ func (r *mysqlTransactionRepository) GetHistory(ctx context.Context, walletID st
 	}
 
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, false, err
 	}
 
 	// get the paginated data, use sort and order
@@ -104,37 +156,169 @@ func (r *mysqlTransactionRepository) GetHistory(ctx context.Context, walletID st
 	}
 
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, false, err
 	}
 
 	defer rows.Close()
 
+	txs, err := scanTransactions(rows)
+	if err != nil {
+		return nil, 0, false, err
+	}
+
+	return txs, total, false, nil
+}
+
+func (r *mysqlTransactionRepository) getHistoryCursor(ctx context.Context, walletID string, params model.PaginationParams) ([]model.Transaction, int64, bool, error) {
+	var cursorTime time.Time
+	var cursorID string
+	var err error
+	hasCursorFilter := false
+
+	if params.Cursor != "" && params.Cursor != "start" && params.Cursor != "first" && params.Cursor != "0" && params.Cursor != "true" {
+		cursorTime, cursorID, err = model.DecodeCursor(params.Cursor)
+		if err != nil {
+			return nil, 0, false, err
+		}
+		hasCursorFilter = true
+	}
+
+	sortOrder := "DESC"
+	if params.Order == "asc" {
+		sortOrder = "ASC"
+	}
+
+	op := "<"
+	if sortOrder == "ASC" {
+		op = ">"
+	}
+
+	query := `SELECT id, sender_wallet_id, receiver_wallet_id,
+				amount, description, idempotency_key, status, created_at
+			FROM transactions
+			WHERE (sender_wallet_id = ? OR receiver_wallet_id = ?)`
+
+	args := []any{walletID, walletID}
+
+	if hasCursorFilter {
+		query += ` AND (created_at ` + op + ` ? OR (created_at = ? AND id ` + op + ` ?))`
+		args = append(args, cursorTime, cursorTime, cursorID)
+	}
+
+	if params.Status != "" {
+		query += " AND status = ?"
+		args = append(args, params.Status)
+	}
+
+	query += " ORDER BY created_at " + sortOrder + ", id " + sortOrder + " LIMIT ?"
+	args = append(args, params.Limit+1)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, false, err
+	}
+
+	defer rows.Close()
+
+	txs, err := scanTransactions(rows)
+	if err != nil {
+		return nil, 0, false, err
+	}
+
+	hasMore := false
+	if len(txs) > params.Limit {
+		hasMore = true
+		txs = txs[:params.Limit]
+	}
+
+	return txs, 0, hasMore, nil
+}
+
+func scanTransactions(rows *sql.Rows) ([]model.Transaction, error) {
 	var txs []model.Transaction
 	for rows.Next() {
 		var t model.Transaction
 		var sender sql.NullString
+		var receiver sql.NullString
+		var desc sql.NullString
 		err := rows.Scan(
 			&t.ID,
 			&sender,
-			&t.ReceiverWalletID,
+			&receiver,
 			&t.Amount,
-			&t.Description,
+			&desc,
 			&t.IdempotencyKey,
 			&t.Status,
 			&t.CreatedAt,
 		)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		if sender.Valid {
 			t.SenderWalletID = &sender.String
+		}
+		if receiver.Valid {
+			t.ReceiverWalletID = receiver.String
+		}
+		if desc.Valid {
+			t.Description = desc.String
 		}
 		txs = append(txs, t)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	return txs, total, nil
+	return txs, nil
+}
+
+func (r *mysqlTransactionRepository) FetchEventsToArchive(
+	ctx context.Context,
+	minAge time.Duration,
+	limit int,
+) ([]model.OutboxEvent, error) {
+	query := `
+		SELECT id, event_type, payload, status, created_at 
+		FROM outbox_events 
+		WHERE status = 'processed' 
+		  AND created_at < NOW() - INTERVAL ? SECOND
+		LIMIT ?
+	`
+	seconds := int(minAge.Seconds())
+	rows, err := r.db.QueryContext(ctx, query, seconds, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []model.OutboxEvent
+	for rows.Next() {
+		var ev model.OutboxEvent
+		if err := rows.Scan(&ev.ID, &ev.EventType, &ev.Payload, &ev.Status, &ev.CreatedAt); err != nil {
+			return nil, err
+		}
+		events = append(events, ev)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return events, nil
+}
+
+func (r *mysqlTransactionRepository) DeleteArchivedEvents(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	placeholders := strings.Repeat("?,", len(ids))
+	placeholders = placeholders[:len(placeholders)-1]
+	query := fmt.Sprintf("DELETE FROM outbox_events WHERE id IN (%s)", placeholders)
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
 }
