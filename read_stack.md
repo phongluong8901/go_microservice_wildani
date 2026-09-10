@@ -247,6 +247,18 @@ Bảo vệ dữ liệu giao dịch nhạy cảm: Trong các hệ thống tài ch
 
 Định danh bằng mật mã học: Thay thế việc dựa vào địa chỉ IP nội bộ, port tĩnh hoặc các token đơn giản dễ bị giả mạo bằng chứng thực mã hóa chuẩn công nghiệp, giúp việc phân quyền giao tiếp giữa các service trở nên minh bạch và cực kỳ an toàn.
 
+15. WebSocket & Real-Time Notifications
+WebSocket là một giao thức truyền thông mạng máy tính, cho phép thiết lập một kết nối song công (full-duplex) qua một kết nối TCP duy nhất giữa Client (trình duyệt, app mobile) và Server. Khác với mô hình HTTP Request/Response truyền thống (client phải hỏi thì server mới trả lời), WebSocket cho phép cả hai bên chủ động đẩy dữ liệu cho nhau bất cứ lúc nào ngay khi có sự kiện mới.
+
+Trong Go, WebSocket thường được xây dựng hiệu quả bằng các thư viện phổ biến như gorilla/websocket hoặc thông qua các cơ chế tích hợp sẵn trong framework như Fiber ([github.com/gofiber/websocket/v2](https://github.com/gofiber/websocket/v2)). Hệ thống thường sử dụng mô hình Hub / Client Manager để quản lý danh sách các kết nối đang mở, định tuyến thông điệp (broadcast hoặc unicast) tới đúng người dùng một cách bất đồng bộ với hiệu suất xử lý đồng thời (concurrency) cực cao nhờ Goroutine và Channel.
+
+Tác dụng trong project gowallet
+Cập nhật số dư ví tức thì (Instant Balance Update): Khi có giao dịch nạp tiền, rút tiền, hoặc nhận tiền chuyển khoản từ người khác thành công, hệ thống sẽ ngay lập tức đẩy thông báo biến động số dư qua WebSocket xuống giao diện người dùng mà không cần họ phải chủ động bấm F5 (tải lại trang) hay gọi API polling liên tục.
+
+Trạng thái giao dịch Real-time (Live Status): Hiển thị trực quan tiến trình xử lý của các lệnh giao dịch lớn hoặc các yêu cầu thanh toán (ví dụ: trạng thái Đang xử lý -> Thành công / Thất bại) ngay trên màn hình dashboard của người dùng một cách mượt mà.
+
+Tối ưu hóa tài nguyên hệ thống: Thay vì để hàng nghìn client liên tục gửi HTTP request lên server mỗi vài giây để kiểm tra xem có tiền về hay không (gây quá tải nặng cho Database), WebSocket duy trì một kết nối ngầm cực nhẹ, tiết kiệm đáng kể băng thông và giảm tải tối đa cho cụm backend Go.
+
 
 # --- more
 1. Ledger system
