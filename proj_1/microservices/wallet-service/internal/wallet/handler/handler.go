@@ -3,16 +3,17 @@ package handler
 import (
 	"net/http"
 
-	"github.com/bashocode/gowallet/microservices/wallet-service/internal/wallet/repository"
+	"github.com/bashocode/gowallet/microservices/shared/utils"
+	"github.com/bashocode/gowallet/microservices/wallet-service/internal/wallet/service"
 	"github.com/gin-gonic/gin"
 )
 
 type WalletHandler struct {
-	repo repository.WalletRepository
+	svc service.WalletService
 }
 
-func NewWalletHandler(repo repository.WalletRepository) *WalletHandler {
-	return &WalletHandler{repo: repo}
+func NewWalletHandler(svc service.WalletService) *WalletHandler {
+	return &WalletHandler{svc: svc}
 }
 
 func (h *WalletHandler) GetBalance(c *gin.Context) {
@@ -22,7 +23,12 @@ func (h *WalletHandler) GetBalance(c *gin.Context) {
 		return
 	}
 
-	w, err := h.repo.GetByUserID(c.Request.Context(), userID.(string))
+	userIDStr, ok := utils.SafeString(userID)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user context"})
+		return
+	}
+	w, err := h.svc.GetByUserID(c.Request.Context(), userIDStr)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return

@@ -3,6 +3,7 @@ module github.com/bashocode/gowallet/microservices/transaction-service
 go 1.26.4
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/bashocode/gowallet/microservices/ledger-service v0.0.0-20260802100100-622dd0e3b37b
 	github.com/bashocode/gowallet/microservices/shared v0.0.0-20260802100100-622dd0e3b37b
 	github.com/bashocode/gowallet/microservices/user-service v0.0.0-20260802100100-622dd0e3b37b
@@ -10,6 +11,7 @@ require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-playground/validator/v10 v10.30.4
 	github.com/google/uuid v1.6.0
+	github.com/rabbitmq/amqp091-go v1.14.0
 	github.com/shopspring/decimal v1.4.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
@@ -55,7 +57,6 @@ require (
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.1 // indirect
-	github.com/rabbitmq/amqp091-go v1.12.0 // indirect
 	github.com/redis/go-redis/v9 v9.22.0 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
