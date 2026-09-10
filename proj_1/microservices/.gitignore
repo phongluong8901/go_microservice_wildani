@@ -2,3 +2,13 @@
 .env
 */bin
 !microservices/api-gateway/docs/
+
+.env.development
+.env.staging
+.env.production
+
+# Allow .env.example as template documentation
+!.env.example
+
+# Compiled binaries
+*/bin
