@@ -199,6 +199,23 @@ Không làm mất dữ liệu giao dịch dang dở: Tránh tình trạng ngư�
 
 Zero Downtime Deployment / Scaling: Khi chạy trên Docker hoặc Kubernetes, khi ứng dụng được cập nhật phiên bản mới hoặc scale hạ tầng, Kubernetes sẽ gửi tín hiệu SIGTERM. Nhờ Graceful Shutdown, service sẽ xử lý nốt các request cuối cùng rồi mới tắt, giúp người dùng hoàn toàn không gặp lỗi 502 Bad Gateway hay Connection Refused trong quá trình deploy.
 
+12. XSS Protection
+XSS (Cross-Site Scripting) là một lỗ hổng bảo mật phổ biến, cho phép kẻ tấn công chèn các đoạn mã độc (thường là JavaScript hoặc HTML) vào các trang web được hiển thị cho người dùng khác. Khi nạn nhân tải trang, mã độc đó sẽ thực thi trong trình duyệt của họ, dẫn đến việc bị đánh cắp cookie, session token, hoặc thao túng giao diện.
+
+XSS Protection trong Go bao gồm các biện pháp lập trình và cơ chế phòng thủ nhằm vô hiệu hóa mã độc trước khi chúng kịp hiển thị hoặc chạy trên trình duyệt:
+Escape dữ liệu: Thư viện chuẩn của Go cung cấp các gói như html (với hàm html.EscapeString) hoặc package html/template tự động chuyển đổi các ký tự nguy hiểm thành dạng an toàn (ví dụ: chuyển <script> thành &lt;script&gt;).
+
+Sử dụng Security Headers: Thiết lập các tiêu đề HTTP (như X-XSS-Protection, Content-Security-Policy - CSP) để ép trình duyệt kích hoạt bộ lọc phòng chống XSS hoặc ngăn chặn việc chạy các đoạn script không rõ nguồn gốc.
+
+Sanitize Input: Kiểm tra, làm sạch dữ liệu đầu vào từ người dùng (ví dụ: tên tài khoản, nội dung chat, ghi chú giao dịch) để loại bỏ các thẻ HTML độc hại trước khi lưu vào Database hoặc trả về cho Client.
+
+Tác dụng trong project gowallet
+Ngăn chặn đánh cắp Session / Token: Nếu hacker chèn thành công mã độc dạng XSS vào phần thông tin người dùng (như tên tài khoản, lời nhắn chuyển tiền) và đoạn mã đó hiển thị trên trang của người khác, mã độc có thể đánh cắp JWT token hoặc cookie phiên đăng nhập, từ đó chiếm đoạt quyền truy cập ví.
+
+Bảo vệ dữ liệu giao dịch và lịch sử: Tránh việc kẻ xấu lợi dụng các trường nhập liệu văn bản (như mô tả giao dịch, ghi chú nạp/rút tiền) để thực hiện hành vi tấn công Stored XSS nhằm phá hoại giao diện hiển thị của hệ thống.
+
+Tuân thủ chuẩn bảo mật ứng dụng: Giúp hệ thống an toàn hơn trước các đợt quét lỗ hổng bảo mật (Pentest/Vulnerability Assessment) bằng cách cấu hình các HTTP headers an toàn và xử lý dữ liệu đầu ra chuẩn chỉnh.
+
 # --- more
 1. Ledger system
 
