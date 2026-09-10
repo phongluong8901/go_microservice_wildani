@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+	"log/slog"
 
 	"github.com/bashocode/gowallet/microservices/shared/logger"
 	"github.com/bashocode/gowallet/microservices/transaction-service/internal/transaction/model"
@@ -201,6 +202,15 @@ func (w *TransferConsumerWorker) Start(ctx context.Context) {
 }
 
 func (w *TransferConsumerWorker) processMessage(ctx context.Context, msg amqp.Delivery) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Log.Error("Panic recovered in transfer consumer processMessage",
+				slog.Any("recover", r),
+			)
+			_ = msg.Nack(false, false)
+		}
+	}()
+	
 	var event model.TransferInitiatedEvent
 	if err := json.Unmarshal(msg.Body, &event); err != nil {
 		logger.Error(ctx, "Failed to unmarshal transfer.initiated event", "error", err.Error())
