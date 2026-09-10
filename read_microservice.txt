@@ -113,14 +113,17 @@ make migrateup-auth-service
 -
 migrate create -ext sql -dir user-service/db/migrations -seq create_user_and_otp_tables
 migrate create -ext sql -dir user-service/db/migrations -seq create_notification_outbox_events
+migrate create -ext sql -dir user-service/db/migrations -seq add_perfomance_indexes
 
 -- wallet-service
 -
 migrate create -ext sql -dir wallet-service/db/migrations -seq create_table_wallet
+migrate create -ext sql -dir wallet-service/db/migrations -seq add_perfomance_indexes
 
 -- ledger-service
 -
 migrate create -ext sql -dir ledger-service/db/migrations -seq create_table_ledger
+migrate create -ext sql -dir ledger-service/db/migrations -seq add_perfomance_indexes
 
 -- transaction-service
 -
@@ -128,6 +131,7 @@ migrate create -ext sql -dir transaction-service/db/migrations -seq add_transact
 migrate create -ext sql -dir transaction-service/db/migrations -seq create_outbox_table
 migrate create -ext sql -dir transaction-service/db/migrations -seq alter-talbe-transaction-and-outbox-events
 migrate create -ext sql -dir transaction-service/db/migrations -seq add_sender_user_id_to_transactions
+migrate create -ext sql -dir transaction-service/db/migrations -seq add_performance_indexes
 
 -- payment-service
 -

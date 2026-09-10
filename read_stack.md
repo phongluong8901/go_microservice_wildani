@@ -259,6 +259,19 @@ Trạng thái giao dịch Real-time (Live Status): Hiển thị trực quan ti�
 
 Tối ưu hóa tài nguyên hệ thống: Thay vì để hàng nghìn client liên tục gửi HTTP request lên server mỗi vài giây để kiểm tra xem có tiền về hay không (gây quá tải nặng cho Database), WebSocket duy trì một kết nối ngầm cực nhẹ, tiết kiệm đáng kể băng thông và giảm tải tối đa cho cụm backend Go.
 
+16. Database Indexing
+Database Indexing (Đánh chỉ mục cơ sở dữ liệu) là một cấu trúc dữ liệu (thường dưới dạng cây B-Tree) được tạo trên một hoặc nhiều cột của bảng cơ sở dữ liệu. Thay vì phải quét toàn bộ bảng từ trên xuống dưới (Full Table Scan) để tìm kiếm một bản ghi, hệ thống cơ sở dữ liệu sẽ tra cứu qua chỉ mục giống như cách bạn tra mục lục ở cuối sách để tìm trang chứa nội dung ngay lập tức.
+
+Trong các ứng dụng backend viết bằng Go, việc tối ưu hóa câu lệnh truy vấn qua GORM, sqlc hay pgx luôn phải đi đôi với việc thiết kế Index hợp lý ở tầng Database (PostgreSQL/MySQL) nhằm đảm bảo hiệu năng khi dữ liệu lớn.
+
+Tác dụng trong project gowallet
+Tăng tốc độ tra cứu số dư và tài khoản: Các bảng như users, wallets thường xuyên thực hiện các câu lệnh SELECT dựa trên user_id hoặc account_number. Đánh index trên các cột này giúp giảm thời gian truy vấn từ mức độ tuyến tính xuống mức độ logarithmic (gần như tức thì)
+
+Tối ưu hóa lịch sử giao dịch (Transaction History): Bảng lịch sử giao dịch (transactions) tích lũy dữ liệu rất nhanh theo thời gian. Khi người dùng mở ứng dụng xem danh sách giao dịch lọc theo wallet_id hoặc created_at, Index giúp cơ sở dữ liệu trả kết quả trong vài mili-giây mà không làm nghẽn hệ thống.
+
+Đảm bảo tính duy nhất và ràng buộc (Unique Index): Các trường như email, số điện thoại hoặc mã giao dịch (reference_id) được đánh index dạng UNIQUE, vừa giúp tìm kiếm siêu nhanh vừa ngăn chặn tuyệt đối tình trạng tạo trùng lặp dữ liệu hay double-spending (chi tiêu kép).
+
+Thuật toán tìm kiếm nhị phân (Binary Search): Khi bạn tìm kiếm một giá trị, cơ sở dữ liệu không cần duyệt qua từng dòng mà bắt đầu từ nút gốc của cây, liên tục chia đôi khoảng dữ liệu để lọc. Nhờ vậy, số bước kiểm tra giảm đi cực kỳ nhiều (độ phức tạp giảm từ $O(N)$ xuống mức logarit $O(\log N)$).
 
 # --- more
 1. Ledger system
