@@ -268,7 +268,14 @@ git add .
 git commit -m "change: first"
 git push -u origin p43_ELK_elastichserch_logstash_kibana
 
+# --- -
 git checkout -b p44_code_analysis
 git add .
 git commit -m "change: first"
 git push -u origin p44_code_analysis
+
+# --- -
+git checkout -b p45_CICD
+git add .
+git commit -m "change: first"
+git push -u origin p45_CICD
