@@ -255,3 +255,9 @@ git checkout -b p41_OpenTelemetry_Jaeger
 git add .
 git commit -m "change: first"
 git push -u origin p41_OpenTelemetry_Jaeger
+
+# --- -
+git checkout -b p42_promtheus_grafana
+git add .
+git commit -m "change: first"
+git push -u origin p42_promtheus_grafana
