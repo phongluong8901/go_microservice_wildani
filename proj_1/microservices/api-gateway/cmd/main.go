@@ -22,6 +22,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // @title           GoWallet API (Microservices)
@@ -129,6 +130,7 @@ func main() {
 
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
+	r.Use(sharedMiddleware.PrometheusMetrics())
 	r.Use(otelgin.Middleware("api-gateway"))
 
 	// 3. Register middleware chain (ORDER MATTERS!)
@@ -142,6 +144,8 @@ func main() {
 	r.Use(sharedMiddleware.SecurityHeaders())
 	//    Sanitize all incoming JSON payloads to strip HTML/script tags
 	r.Use(sharedMiddleware.SanitizeBody(sanitizer))
+	// Metrics endpoint for Prometheus
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {

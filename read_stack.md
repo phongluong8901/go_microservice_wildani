@@ -308,11 +308,20 @@ Phát hiện chính xác điểm nghẽn (Bottleneck Detection): Khi hệ thốn
 
 Gỡ lỗi phân tán hiệu quả (Distributed Debugging): Khi một request thất bại giữa các service, việc phải lục tìm file log rời rạc trên từng server Docker là vô cùng khó khăn. Với Distributed Tracing, bạn chỉ cần lấy Trace ID của request lỗi đó tra trên Jaeger để xem toàn bộ lịch sử gọi hàm, mã lỗi chi tiết và ngữ cảnh phát sinh sự cố từ đầu đến cuối.
 
+19. Prometheus và Grafana cho Metrics
+Prometheus: Hệ thống mã nguồn mở chuyên thu thập và lưu trữ các chỉ số số liệu (metrics) dưới dạng chuỗi thời gian (time-series data). Trong các microservices viết bằng Go, ứng dụng sẽ chủ động mở một endpoint (ví dụ: /metrics) để Prometheus định kỳ "cào" (scrape) dữ liệu về hiệu năng hệ thống.
 
+Grafana: Công cụ trực quan hóa dữ liệu hàng đầu. Nó kết nối trực tiếp với Prometheus (và các nguồn dữ liệu khác) để biến các con số khô khan thành các biểu đồ (dashboard) trực quan, đẹp mắt và dễ theo dõi theo thời gian thực.
 
+Tác dụng cụ thể trong project gowallet
+Giám sát tài nguyên hạ tầng Go Services: Theo dõi sát sao lượng tiêu thụ CPU, RAM, số lượng Goroutine đang chạy đồng thời, và trạng thái của kết nối Database/Redis pool để phát hiện sớm các hiện tượng rò rỉ bộ nhớ (memory leak).
 
+Đo lường thông số hiệu năng giao dịch (Performance & Health):
+RPS (Request Per Second): Lượng truy cập và giao dịch gửi đến hệ thống mỗi giây.
 
+Latency (Độ trễ): Thời gian phản hồi của các API (đặc biệt là các chỉ số p95, p99) để biết thao tác nạp/rút tiền có bị chậm hay không.
 
+Error Rate: Tỷ lệ lỗi HTTP/gRPC (ví dụ: số lượng lỗi 5xx hoặc lỗi giao dịch thất bại).
 
 # --- more
 1. Ledger system

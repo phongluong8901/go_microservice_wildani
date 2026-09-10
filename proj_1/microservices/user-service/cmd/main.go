@@ -30,6 +30,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -151,9 +152,13 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
+	r.Use(middleware.PrometheusMetrics())
 	r.Use(otelgin.Middleware("user-service"))
 	r.Use(middleware.ErrorHandler())
 	r.Use(middleware.CorrelationID())
+
+	// Metrics endpoint for Prometheus
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	r.GET("/live", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "UP"})
