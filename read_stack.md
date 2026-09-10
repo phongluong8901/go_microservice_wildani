@@ -337,6 +337,17 @@ Tìm kiếm lỗi siêu tốc bằng Full-Text Search: Thay vì phải gõ lện
 
 Hỗ trợ gỡ lỗi kết hợp (Log & Trace Correlation): Hoạt động song song với Jaeger và OpenTelemetry. Khi Jaeger cho bạn biết một request nạp tiền bị chậm hoặc lỗi ở Trace ID nào đó, bạn có thể mang Trace ID đó sang Kibana để trích xuất ngay lập tức các dòng log chi tiết do service Go ghi lại tại chính xác thời điểm đó.
 
+21. SonarQube
+SonarQube là công cụ kiểm tra chất lượng mã nguồn và bảo mật tự động (Static Application Security Testing - SAST). Nó quét sâu vào mã nguồn dự án Go để phát hiện lỗi logic, lỗ hổng bảo mật, các đoạn code kém tối ưu hoặc đoạn code trùng lặp trước khi code được đưa lên môi trường sản xuất.
+
+Tác dụng cụ thể trong project gowallet
+Phát hiện sớm lỗ hổng bảo mật tài chính: Quét và cảnh báo các rủi ro bảo mật nghiêm trọng liên quan trực tiếp đến hệ thống ví điện tử như lỗi SQL Injection, hở thông tin cấu hình nhạy cảm (JWT Secret, API Stripe Key), hoặc thiếu cơ chế kiểm tra quyền truy cập (Access Control).
+
+Kiểm soát độ bao phủ của Unit Test (Code Coverage): Theo dõi xem các logic xử lý giao dịch quan trọng (như chuyển tiền, số dư ví, đối soát) đã được viết test đầy đủ chưa (thường yêu cầu đạt mức tối thiểu % nhất định).
+
+Quản lý nợ kỹ thuật (Technical Debt) & Code Smells: Chỉ ra các đoạn code viết dài dòng, phức tạp, xử lý đồng thời bằng Go Goroutine bị sai logic, hoặc các biến/hàm thừa thãi, giúp mã nguồn luôn sạch sẽ, dễ bảo trì và dễ mở rộng tính năng về sau.
+
+Chuẩn hóa quy chuẩn code (Quality Gate): Tích hợp vào quy trình CI/CD (GitHub Actions). Nếu mã nguồn không đạt tiêu chuẩn chất lượng do SonarQube đặt ra (ví dụ: phát hiện lỗi bảo mật mức độ cao), hệ thống sẽ tự động chặn không cho phép merge code vào nhánh chính.
 
 # --- more
 1. Ledger system

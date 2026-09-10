@@ -15,3 +15,6 @@
 
 # mTLS TLS certificates and private keys (never commit to git)
 certs/
+
+# test coverage report sonarqube
+coverage.out
