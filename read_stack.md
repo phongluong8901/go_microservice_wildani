@@ -273,6 +273,30 @@ Tối ưu hóa lịch sử giao dịch (Transaction History): Bảng lịch sử
 
 Thuật toán tìm kiếm nhị phân (Binary Search): Khi bạn tìm kiếm một giá trị, cơ sở dữ liệu không cần duyệt qua từng dòng mà bắt đầu từ nút gốc của cây, liên tục chia đôi khoảng dữ liệu để lọc. Nhờ vậy, số bước kiểm tra giảm đi cực kỳ nhiều (độ phức tạp giảm từ $O(N)$ xuống mức logarit $O(\log N)$).
 
+17. Cursor Pagination (Phân trang bằng con trỏ) và Reliability (Độ tin cậy)
+Cursor Pagination (Phân trang bằng con trỏ) và Reliability (Độ tin cậy) là hai kỹ thuật kiến trúc quan trọng nhằm tối ưu hóa hiệu suất đọc dữ liệu lớn và đảm bảo tính toàn vẹn hệ thống trong các ứng dụng tài chính như gowallet.
+
+cursor Pagination là kỹ thuật phân trang dựa trên một mốc tham chiếu cố định (cursor) — thường là ID bản ghi cuối cùng hoặc mốc thời gian (created_at) của trang trước — thay vì sử dụng cơ chế LIMIT / OFFSET truyền thống.
+
+Cách hoạt động: Thay vì bắt CSDL đếm và bỏ qua hàng vạn bản ghi (OFFSET 10000), câu lệnh truy vấn sẽ dùng điều kiện trực tiếp từ mốc con trỏ:
+
+SQL
+
+
+SELECT * FROM transactions WHERE id > last_seen_id ORDER BY id ASC LIMIT 20;
+
+Tốc độ cực nhanh cho lịch sử giao dịch: Bảng giao dịch ví điện tử tích lũy dữ liệu rất lớn. OFFSET truyền thống sẽ chậm dần khi người dùng kéo xuống các trang sâu (vì CSDL phải quét và bỏ qua từ đầu). Cursor Pagination giữ tốc độ truy vấn luôn nhanh đều ở mọi trang vì nó nhảy thẳng đến mốc ID tiếp theo nhờ Index.
+
+Chống trôi/lặp dữ liệu (Data Drift): Trong môi trường tài chính có giao dịch diễn ra liên tục, nếu dùng OFFSET, một giao dịch mới chèn lên đầu có thể khiến trang sau bị lặp hoặc sót dữ liệu. Cursor dùng mốc tham chiếu tĩnh giúp khắc phục hoàn toàn vấn đề này.
+
+Reliability (Độ tin cậy) đóng vai trò gì?
+Reliability trong các tiến trình xử lý nền (như quét hàng đợi thông báo, đồng bộ số dư hoặc xử lý webhook thanh toán Stripe) là khả năng hệ thống vận hành bền bỉ, không làm thất lạc dữ liệu hoặc bỏ sót sự kiện ngay cả khi xảy ra sự cố đột ngột (mất mạng CSDL, sập server).
+
+Bảo vệ luồng giao dịch ngầm: Kết hợp với các mô hình như Transactional Outbox Pattern, tính năng reliability đảm bảo các sự kiện quan trọng (như xác nhận nạp tiền, trừ tiền ví) được xử lý thành công theo cơ chế an toàn, có khả năng thử lại (retry) khi gặp lỗi.
+
+Đồng bộ trạng thái chính xác: Giúp hệ thống không bị lệch số dư hay mất thông báo biến động tiền tệ của người dùng trong các kịch bản tải cao (high concurrency).
+
+
 # --- more
 1. Ledger system
 
