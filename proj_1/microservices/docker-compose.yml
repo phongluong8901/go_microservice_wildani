@@ -179,6 +179,10 @@ services:
             - RABBITMQ_PORT=${RABBITMQ_PORT}
             - RABBITMQ_USER=${RABBITMQ_USER}
             - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+            - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+            - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+            - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+            - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL}
         depends_on:
             mysql:
                 condition: service_healthy
@@ -342,6 +346,7 @@ services:
             - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
             - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
             - OUTBOX_ARCHIVE_AGE=${OUTBOX_ARCHIVE_AGE}
+            - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL}
         depends_on:
             mysql:
                 condition: service_healthy

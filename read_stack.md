@@ -137,6 +137,16 @@ Giải phóng dung lượng Database: Sau khi đã đẩy dữ liệu sự kiệ
 
 Kho lưu trữ lạnh (Cold Storage) để tra soát: MinIO đóng vai trò là kho lưu trữ lịch sử dài hạn với chi phí thấp. Khi cần kiểm tra lại lịch sử giao dịch hoặc sự kiện cũ từ vài tháng trước, hệ thống hoặc kỹ sư có thể truy xuất trực tiếp các file JSON trên MinIO mà không làm ảnh hưởng đến hiệu năng của database chính.
 
+9. MinioMinIO là mã nguồn mở dùng để xây dựng hệ thống lưu trữ đối tượng (Object Storage) tương thích với chuẩn Amazon S3.
+
+Tương thích API S3: Cho phép bạn dễ dàng chuyển đổi code giữa AWS S3 và MinIO mà không cần sửa đổi nhiều.
+
+Tự host (Self-hosted): Bạn có thể tự triển khai MinIO trên server riêng, VPS, hoặc Docker để kiểm soát hoàn toàn dữ liệu và tối ưu chi phí lưu trữ so với việc thuê cloud công cộng.
+
+Hiệu suất cao: Viết bằng ngôn ngữ Go nên MinIO có tốc độ đọc/ghi dữ liệu rất nhanh, nhẹ và tiết kiệm tài nguyên.
+
+Bảo mật tốt: Hỗ trợ mã hóa dữ liệu, quản lý quyền truy cập chi tiết (IAM, bucket policy) và tích hợp các công cụ kiểm soát an toàn.
+
 # --- more
 1. Ledger system
 
