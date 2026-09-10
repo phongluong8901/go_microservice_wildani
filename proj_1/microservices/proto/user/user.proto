@@ -9,7 +9,11 @@ service UserService {
   rpc GetUserByID (GetUserRequest) returns (UserResponse);
   rpc GetUserByEmail (GetUserByEmailRequest) returns (UserResponse);
   rpc CreateUser (CreateUserRequest) returns (UserResponse);
+  rpc CleanupExpiredOTPs (CleanupRequest) returns (CleanupResponse);
+  rpc FetchEventsToArchive (FetchEventsToArchiveRequest) returns (FetchEventsToArchiveResponse);
+  rpc DeleteArchivedEvents (DeleteArchivedEventsRequest) returns (DeleteArchivedEventsResponse);
 }
+
 
 message GetUserRequest {
   string id = 1;
@@ -36,4 +40,38 @@ message UserResponse {
   string password_hash = 4; // Needed by Auth Service for login verification
   string role = 5;          // Needed by Auth Service to generate JWT with role
    bool is_verified = 6;
+}
+
+
+message CleanupRequest {}
+
+message CleanupResponse {
+  int32 deleted_count = 1;
+}
+
+
+message OutboxEvent {
+  string id = 1;
+  string event_type = 2;
+  string payload = 3;
+  string status = 4;
+  string created_at = 5;
+}
+
+message FetchEventsToArchiveRequest {
+  int64 min_age_seconds = 1;
+  int32 limit = 2;
+}
+
+message FetchEventsToArchiveResponse {
+  repeated OutboxEvent events = 1;
+}
+
+message DeleteArchivedEventsRequest {
+  repeated string ids = 1;
+}
+
+message DeleteArchivedEventsResponse {
+  bool success = 1;
+  string error = 2;
 }
