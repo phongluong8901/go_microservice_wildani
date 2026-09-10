@@ -279,3 +279,9 @@ git checkout -b p45_CICD
 git add .
 git commit -m "change: first"
 git push -u origin p45_CICD
+
+# --- -
+git checkout -b p46_Jenkins_selfhost
+git add .
+git commit -m "change: first"
+git push -u origin p46_Jenkins_selfhost
