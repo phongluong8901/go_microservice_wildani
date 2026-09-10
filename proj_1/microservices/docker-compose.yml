@@ -136,6 +136,49 @@ services:
             - gowallet-network
         restart: always
 
+    elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+        container_name: gowallet-elasticsearch
+        environment:
+            - discovery.type=single-node
+            - xpack.security.enabled=false
+            - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+        ports:
+            - "127.0.0.1:${ELASTICSEARCH_PORT}:${ELASTICSEARCH_PORT}"
+        volumes:
+            - elasticsearch_data:/usr/share/elasticsearch/data
+        networks:
+            - gowallet-network
+        restart: always
+
+    logstash:
+        image: docker.elastic.co/logstash/logstash:8.12.0
+        container_name: gowallet-logstash
+        volumes:
+            - ./deployments/elk/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+        ports:
+            - "127.0.0.1:${LOGSTASH_PORT}:${LOGSTASH_PORT}"
+        environment:
+            - "LS_JAVA_OPTS=-Xms256m -Xmx256m"
+        depends_on:
+            - elasticsearch
+        networks:
+            - gowallet-network
+        restart: always
+
+    kibana:
+        image: docker.elastic.co/kibana/kibana:8.12.0
+        container_name: gowallet-kibana
+        ports:
+            - "127.0.0.1:${KIBANA_PORT}:${KIBANA_PORT}"
+        environment:
+            - ELASTICSEARCH_HOSTS=http://elasticsearch:${ELASTICSEARCH_PORT}
+        depends_on:
+            - elasticsearch
+        networks:
+            - gowallet-network
+        restart: always
+
     # === Application Services ===
     api-gateway:
         build:
@@ -158,6 +201,7 @@ services:
             ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
             WEBSOCKET_CHANNEL: ${WEBSOCKET_CHANNEL}
             OTEL_COLLECTOR_ADDR: ${OTEL_COLLECTOR_ADDR}
+            LOGSTASH_ADDR: ${LOGSTASH_ADDR}
             GRPC_SSL_CA_PATH: /certs/ca.crt
             GRPC_SSL_CERT_PATH: /certs/api-gateway.crt
             GRPC_SSL_KEY_PATH: /certs/api-gateway.key
@@ -211,6 +255,7 @@ services:
             - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
             - GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL}
             - OTEL_COLLECTOR_ADDR=${OTEL_COLLECTOR_ADDR}
+            - LOGSTASH_ADDR=${LOGSTASH_ADDR}
             - GRPC_SSL_CA_PATH=/certs/ca.crt
             - GRPC_SSL_CERT_PATH=/certs/auth-service.crt
             - GRPC_SSL_KEY_PATH=/certs/auth-service.key
@@ -297,6 +342,7 @@ services:
             - REDIS_PORT=${REDIS_PORT}
             - JWT_SECRET=${JWT_SECRET}
             - OTEL_COLLECTOR_ADDR=${OTEL_COLLECTOR_ADDR}
+            - LOGSTASH_ADDR=${LOGSTASH_ADDR}
             - GRPC_SSL_CA_PATH=/certs/ca.crt
             - GRPC_SSL_CERT_PATH=/certs/wallet-service.crt
             - GRPC_SSL_KEY_PATH=/certs/wallet-service.key
@@ -332,6 +378,7 @@ services:
             - REDIS_PORT=${REDIS_PORT}
             - JWT_SECRET=${JWT_SECRET}
             - WALLET_GRPC_ADDR=${WALLET_GRPC_ADDR}
+            - LOGSTASH_ADDR=${LOGSTASH_ADDR}
             - GRPC_SSL_CA_PATH=/certs/ca.crt
             - GRPC_SSL_CERT_PATH=/certs/ledger-service.crt
             - GRPC_SSL_KEY_PATH=/certs/ledger-service.key
@@ -369,6 +416,7 @@ services:
             - JWT_SECRET=${JWT_SECRET}
             - USER_GRPC_ADDR=${USER_GRPC_ADDR}
             - WALLET_GRPC_ADDR=${WALLET_GRPC_ADDR}
+            - LOGSTASH_ADDR=${LOGSTASH_ADDR}
             - LEDGER_GRPC_ADDR=${LEDGER_GRPC_ADDR}
             - RABBITMQ_HOST=${RABBITMQ_HOST}
             - RABBITMQ_PORT=${RABBITMQ_PORT}
@@ -425,6 +473,7 @@ services:
             - RABBITMQ_PORT=${RABBITMQ_PORT}
             - RABBITMQ_USER=${RABBITMQ_USER}
             - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+            - LOGSTASH_ADDR=${LOGSTASH_ADDR}
             - GRPC_SSL_CA_PATH=/certs/ca.crt
             - GRPC_SSL_CERT_PATH=/certs/payment-service.crt
             - GRPC_SSL_KEY_PATH=/certs/payment-service.key
@@ -466,6 +515,7 @@ services:
             - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
             - OUTBOX_ARCHIVE_AGE=${OUTBOX_ARCHIVE_AGE}
             - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL}
+            - LOGSTASH_ADDR=${LOGSTASH_ADDR}
             - GRPC_SSL_CA_PATH=/certs/ca.crt
             - GRPC_SSL_CERT_PATH=/certs/scheduler-service.crt
             - GRPC_SSL_KEY_PATH=/certs/scheduler-service.key
@@ -513,6 +563,7 @@ services:
             - SMTP_HOST=${SMTP_HOST}
             - SMTP_PORT=${SMTP_PORT}
             - SMTP_FROM=${SMTP_FROM}
+            - LOGSTASH_ADDR=${LOGSTASH_ADDR}
             - GRPC_SSL_CA_PATH=/certs/ca.crt
             - GRPC_SSL_CERT_PATH=/certs/notification-service.crt
             - GRPC_SSL_KEY_PATH=/certs/notification-service.key
@@ -556,6 +607,7 @@ volumes:
     minio_data:
     prometheus_data:
     grafana_data:
+    elasticsearch_data:
 
 networks:
     gowallet-network:

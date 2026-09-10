@@ -31,10 +31,14 @@ import (
 )
 
 func main() {
-	logger.InitLogger()
+	cfg := config.LoadConfig()
+
+	logger.InitLogger(
+		logger.WithServiceName("payment-service"),
+		logger.WithLogstashAddr(cfg.LogstashAddr),
+	)
 	logger.Log.Info("Starting Payment Microservice...")
 
-	cfg := config.LoadConfig()
 
 	// Initialize OpenTelemetry Tracer
 	tp, err := tracing.InitTracer("payment-service", cfg.OTELCollectorAddr)

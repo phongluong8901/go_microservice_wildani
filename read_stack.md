@@ -323,6 +323,21 @@ Latency (Độ trễ): Thời gian phản hồi của các API (đặc biệt l�
 
 Error Rate: Tỷ lệ lỗi HTTP/gRPC (ví dụ: số lượng lỗi 5xx hoặc lỗi giao dịch thất bại).
 
+20. Bộ công cụ ELK (Elasticsearch, Logstash, Kibana)
+Elasticsearch: Công cụ tìm kiếm và phân tích dữ liệu phân tán (Search & Analytics Engine), đóng vai trò là "kho chứa" và lập chỉ mục siêu tốc cho toàn bộ dữ liệu log.
+
+Logstash: Đường ống xử lý dữ liệu (Data Pipeline) có nhiệm vụ thu thập, lọc, biến đổi và chuyển tiếp các dòng log từ nhiều service khác nhau vào Elasticsearch.
+
+Kibana: Giao diện trực quan hóa (UI Dashboard) giúp lập trình viên tìm kiếm, lọc dữ liệu và vẽ biểu đồ phân tích log trực tiếp trên trình duyệt web.
+
+Tác dụng cụ thể trong project gowallet
+Quản lý log tập trung (Centralized Logging): Trong hệ thống microservices của gowallet, các service Go, cơ sở dữ liệu, và Redis chạy trên nhiều container độc lập sinh ra hàng loạt file log rời rạc. ELK thu gom toàn bộ log từ tất cả các nguồn này về một mối duy nhất.
+
+Tìm kiếm lỗi siêu tốc bằng Full-Text Search: Thay vì phải gõ lệnh docker logs thủ công cho từng service, bạn có thể dùng Kibana để tìm kiếm bất kỳ từ khóa nào (như user_id, transaction_id, hoặc mã lỗi thanh toán Stripe) xuyên suốt toàn bộ hệ thống chỉ trong vài mili-giây
+
+Hỗ trợ gỡ lỗi kết hợp (Log & Trace Correlation): Hoạt động song song với Jaeger và OpenTelemetry. Khi Jaeger cho bạn biết một request nạp tiền bị chậm hoặc lỗi ở Trace ID nào đó, bạn có thể mang Trace ID đó sang Kibana để trích xuất ngay lập tức các dòng log chi tiết do service Go ghi lại tại chính xác thời điểm đó.
+
+
 # --- more
 1. Ledger system
 
