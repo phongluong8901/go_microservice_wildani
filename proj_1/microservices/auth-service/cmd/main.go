@@ -15,16 +15,18 @@ import (
 	"github.com/bashocode/gowallet/microservices/auth-service/internal/auth/repository"
 	"github.com/bashocode/gowallet/microservices/auth-service/internal/auth/service"
 	pbAuth "github.com/bashocode/gowallet/microservices/auth-service/proto/auth"
-	sharedGRPC "github.com/bashocode/gowallet/microservices/shared/grpc"
 	"github.com/bashocode/gowallet/microservices/shared/config"
 	"github.com/bashocode/gowallet/microservices/shared/database"
+	sharedGRPC "github.com/bashocode/gowallet/microservices/shared/grpc"
 	"github.com/bashocode/gowallet/microservices/shared/logger"
 	"github.com/bashocode/gowallet/microservices/shared/middleware"
+	"github.com/bashocode/gowallet/microservices/shared/tracing"
 	pb "github.com/bashocode/gowallet/microservices/user-service/proto/user"
 	pbWallet "github.com/bashocode/gowallet/microservices/wallet-service/proto/wallet"
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -46,6 +48,18 @@ func main() {
 		logger.Fatal(context.Background(), "Could not connect to database", "error", err)
 	}
 
+	// Initialize OpenTelemetry Tracer
+	tp, err := tracing.InitTracer("auth-service", cfg.OTELCollectorAddr)
+	if err != nil {
+		logger.Log.Warn("Failed to initialize tracer, continuing without tracing: " + err.Error())
+	} else {
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = tp.Shutdown(shutdownCtx)
+		}()
+	}
+
 	userCreds, err := sharedGRPC.GetClientDialCredentials(
 		cfg.IsProduction(),
 		cfg.GRPCSSLCertPath,
@@ -65,6 +79,7 @@ func main() {
 			sharedGRPC.UnaryClientIdentity("auth-service"),
 			sharedGRPC.UnaryClientTimeout(5*time.Second),
 		),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithDefaultServiceConfig(`{
 			"methodConfig": [{
 				"name": [{"service": "user.UserService"}],
@@ -103,6 +118,7 @@ func main() {
 			sharedGRPC.UnaryClientIdentity("auth-service"),
 			sharedGRPC.UnaryClientTimeout(5*time.Second),
 		),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithDefaultServiceConfig(`{
 			"loadBalancingConfig": [{"round_robin":{}}],
 			"methodConfig": [{
@@ -131,6 +147,7 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
+	r.Use(otelgin.Middleware("auth-service"))
 	r.Use(middleware.ErrorHandler())
 	r.Use(middleware.CorrelationID())
 
@@ -179,7 +196,8 @@ func main() {
 	}
 	serverOpts = append(
 		serverOpts,
-		grpc.UnaryInterceptor(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.ChainUnaryInterceptor(
 			sharedGRPC.RequireServiceIdentity(
 				!cfg.IsProduction(),
 				"scheduler-service",

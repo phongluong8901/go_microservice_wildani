@@ -296,6 +296,23 @@ Bảo vệ luồng giao dịch ngầm: Kết hợp với các mô hình như Tra
 
 Đồng bộ trạng thái chính xác: Giúp hệ thống không bị lệch số dư hay mất thông báo biến động tiền tệ của người dùng trong các kịch bản tải cao (high concurrency).
 
+18. OpenTelemetry và Jaeger
+OpenTelemetry (OTel): Bộ công cụ chuẩn hóa tiêu chuẩn công nghiệp (API và SDK) được tích hợp trực tiếp vào mã nguồn Go của các microservices để sinh ra dữ liệu đo lường gồm Traces (dấu vết luồng xử lý), Metrics, và Logs. Nó tự động gắn kết các định danh như Trace ID và Span ID vào mọi yêu cầu HTTP hoặc gRPC khi chúng truyền qua các dịch vụ.
+
+Jaeger: Hệ thống mã nguồn mở chuyên dụng để thu thập, lưu trữ và hiển thị trực quan dữ liệu traces. Jaeger cung cấp một giao diện bảng điều khiển (UI Dashboard) giúp lập trình viên vẽ lại sơ đồ thời gian thực của một yêu cầu khi nó chạy xuyên qua hệ thống phân tán.
+
+Tác dụng cụ thể trong project gowallet
+Theo dõi luồng giao dịch xuyên suốt (End-to-End Tracing): Trong kiến trúc microservices của gowallet, một nghiệp vụ tài chính như "chuyển tiền" hoặc "nạp tiền" không chỉ nằm ở một nơi mà phải đi qua nhiều service độc lập (ví dụ: api-gateway $\rightarrow$ auth-service $\rightarrow$ wallet-service $\rightarrow$ ledger-service). OpenTelemetry giúp liên kết tất cả các bước này lại bằng một Trace ID duy nhất, cho thấy toàn bộ bức tranh hành trình của giao dịch.
+
+Phát hiện chính xác điểm nghẽn (Bottleneck Detection): Khi hệ thống có hiện tượng chậm hoặc phản hồi lâu, thay vì đoán mò xem lỗi nằm ở đâu, bảng điều khiển của Jaeger hiển thị biểu đồ dạng thác nước (Timeline chart) chỉ đích xác đoạn code, câu lệnh SQL, hoặc mạng nội bộ nào đang tốn nhiều thời gian xử lý nhất (ví dụ: mất 2ms ở auth nhưng mất 300ms ở query lịch sử giao dịch).
+
+Gỡ lỗi phân tán hiệu quả (Distributed Debugging): Khi một request thất bại giữa các service, việc phải lục tìm file log rời rạc trên từng server Docker là vô cùng khó khăn. Với Distributed Tracing, bạn chỉ cần lấy Trace ID của request lỗi đó tra trên Jaeger để xem toàn bộ lịch sử gọi hàm, mã lỗi chi tiết và ngữ cảnh phát sinh sự cố từ đầu đến cuối.
+
+
+
+
+
+
 
 # --- more
 1. Ledger system
