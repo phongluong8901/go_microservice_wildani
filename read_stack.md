@@ -230,6 +230,23 @@ Ngăn chặn lệnh chuyển tiền trái phép: Nếu một người dùng đan
 
 Bảo vệ các thao tác nhạy cảm: Đảm bảo mọi hành động thay đổi trạng thái tài khoản (như nạp tiền, rút tiền, đổi mật khẩu, cập nhật thông tin ví) đều phải xuất phát từ chính chủ thông qua giao diện ứng dụng hợp lệ chứ không bị mạo danh từ các nguồn bên ngoài.
 
+14. TLS-encrypted gRPC với mTLS và xác thực danh tính (Identity Verification)
+TLS-encrypted gRPC với mTLS và xác thực danh tính (Identity Verification) là một cơ chế bảo mật cao cấp dùng để bảo vệ kênh truyền thông tin nội bộ giữa các microservices, đảm bảo an toàn tuyệt đối cho kiến trúc phân tán.
+
+gRPC & TLS: gRPC sử dụng HTTP/2 và Protocol Buffers để truyền dữ liệu với hiệu suất cực cao. Khi tích hợp TLS, toàn bộ luồng dữ liệu truyền qua mạng giữa các service đều được mã hóa, ngăn chặn hoàn toàn các cuộc tấn công nghe lén (sniffing) hoặc xen giữa (Man-in-the-Middle).
+
+mTLS (Mutual TLS - Xác thực hai chiều): Khác với HTTPS thông thường (chỉ client kiểm tra server), mTLS bắt buộc cả client (service gọi) và server (service nhận) phải trình diện chứng chỉ số (X.509 certificate) để xác thực lẫn nhau trước khi thiết lập bất kỳ kết nối nào.
+
+Xác thực danh tính (Identity Verification): Dựa vào chứng chỉ số của mTLS, service nhận sẽ trích xuất thông tin định danh (như SAN - Subject Alternative Name) để kiểm tra xem service gọi có thực sự là đối tượng được ủy quyền hay không, từ đó ngăn chặn tình trạng service giả mạo gọi vào API nội bộ.
+
+Tác dụng và ý nghĩa trong hệ thống Microservices:
+
+Thiết lập mô hình Zero-Trust: Loại bỏ giả định rằng "mạng nội bộ (private network) hoàn toàn an toàn". Ngay cả khi hacker lọt được vào bên trong cụm hạ tầng Docker/Kubernetes, chúng cũng không thể kết nối hoặc gọi API các service khác nếu không sở hữu cặp chứng chỉ số và private key hợp lệ.
+
+Bảo vệ dữ liệu giao dịch nhạy cảm: Trong các hệ thống tài chính hay ví điện tử, thông tin truyền giữa các service lõi (như giữa wallet-service và ledger-service) được mã hóa chặt chẽ ở tầng giao vận, chống rò rỉ dữ liệu tài khoản người dùng.
+
+Định danh bằng mật mã học: Thay thế việc dựa vào địa chỉ IP nội bộ, port tĩnh hoặc các token đơn giản dễ bị giả mạo bằng chứng thực mã hóa chuẩn công nghiệp, giúp việc phân quyền giao tiếp giữa các service trở nên minh bạch và cực kỳ an toàn.
+
 
 # --- more
 1. Ledger system

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"strings"
+	"net/http"
 
 	"github.com/bashocode/gowallet/microservices/shared/security"
 	"github.com/gin-gonic/gin"
@@ -26,6 +27,9 @@ func SanitizeBody(sanitizer *security.Sanitizer) gin.HandlerFunc {
 			c.Next()
 			return
 		}
+
+		// Limit JSON body size to 2MB to prevent memory exhaustion
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 2*1024*1024)
 
 		// Read body
 		bodyBytes, err := io.ReadAll(c.Request.Body)

@@ -21,6 +21,7 @@ import (
 	walletService "github.com/bashocode/gowallet/microservices/wallet-service/internal/wallet/service"
 	pb "github.com/bashocode/gowallet/microservices/wallet-service/proto/wallet"
 	"github.com/gin-gonic/gin"
+	sharedGRPC "github.com/bashocode/gowallet/microservices/shared/grpc"
 	"google.golang.org/grpc"
 )
 
@@ -58,7 +59,29 @@ func main() {
 		logger.Fatal(context.Background(), "Failed to listen gRPC", "error", err)
 	}
 
-	grpcServer := grpc.NewServer()
+	serverOpts, err := sharedGRPC.GetServerOptions(
+		cfg.IsProduction(),
+		cfg.GRPCSSLCertPath,
+		cfg.GRPCSSLKeyPath,
+		cfg.GRPCSSLCAPath,
+	)
+	if err != nil {
+		logger.Fatal(context.Background(), "Failed to load gRPC server credentials", "error", err)
+	}
+
+	serverOpts = append(serverOpts,
+		grpc.UnaryInterceptor(sharedGRPC.RequireServiceIdentity(
+			!cfg.IsProduction(),
+			"transaction-service",
+			"ledger-service",
+			"user-service",
+			"auth-service",
+			"api-gateway",
+			"scheduler-service",
+		)),
+	)
+
+	grpcServer := grpc.NewServer(serverOpts...)
 	pb.RegisterWalletServiceServer(grpcServer, walletGRPC.NewWalletGRPCServer(wSvc))
 
 	go func() {
@@ -101,7 +124,7 @@ func main() {
 	v1 := r.Group("/api/v1")
 	{
 		protected := v1.Group("")
-		protected.Use(middleware.AuthMiddleware(rdb))
+		protected.Use(middleware.AuthMiddleware(rdb, cfg.JWTSecret))
 		{
 			protected.GET("/wallets/me", wHandler.GetBalance)
 		}
