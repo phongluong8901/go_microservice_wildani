@@ -216,6 +216,21 @@ Bảo vệ dữ liệu giao dịch và lịch sử: Tránh việc kẻ xấu l�
 
 Tuân thủ chuẩn bảo mật ứng dụng: Giúp hệ thống an toàn hơn trước các đợt quét lỗ hổng bảo mật (Pentest/Vulnerability Assessment) bằng cách cấu hình các HTTP headers an toàn và xử lý dữ liệu đầu ra chuẩn chỉnh.
 
+13. CSRF Protection
+CSRF (Cross-Site Request Forgery - Giả mạo yêu cầu qua lại trang web) là một kiểu tấn công mà kẻ xấu lừa trình duyệt của người dùng (đang đăng nhập vào một ứng dụng hợp lệ) tự động thực hiện các hành động không mong muốn (như chuyển tiền, đổi mật khẩu) trên trang web đó mà nạn nhân hoàn toàn không hay biết.
+
+Cơ chế chống CSRF trong Go thường dựa trên Synchronizer Token Pattern (mô hình Token đồng bộ) hoặc việc cấu hình chặt chẽ cookie:
+
+Anti-CSRF Token: Server tạo ra một chuỗi token ngẫu nhiên, độc nhất cho mỗi phiên làm việc hoặc mỗi request, gắn nó vào form HTML hoặc trả về qua Header. Khi client gửi request dạng thay đổi dữ liệu (POST, PUT, DELETE), server sẽ kiểm tra xem token gửi lên có khớp với token đã lưu trong session của người dùng hay không. Nếu không khớp hoặc thiếu, request sẽ bị từ chối.
+
+SameSite Cookie Policy: Cấu hình cookie xác thực (Session Cookie) với thuộc tính SameSite=Strict hoặc SameSite=Lax để trình duyệt tự động chặn việc gửi cookie kèm theo các request bắt nguồn từ trang web của bên thứ ba.
+
+Tác dụng trong project gowallet
+Ngăn chặn lệnh chuyển tiền trái phép: Nếu một người dùng đang đăng nhập vào gowallet và vô tình truy cập vào một trang web độc hại do hacker lập ra, trang web độc hại đó có thể ngầm gửi một request POST/PUT yêu cầu chuyển toàn bộ số dư ví sang tài khoản của kẻ tấn công. Nhờ có CSRF token, server sẽ phát hiện request này thiếu hoặc sai token hợp lệ và lập tức chặn lại.
+
+Bảo vệ các thao tác nhạy cảm: Đảm bảo mọi hành động thay đổi trạng thái tài khoản (như nạp tiền, rút tiền, đổi mật khẩu, cập nhật thông tin ví) đều phải xuất phát từ chính chủ thông qua giao diện ứng dụng hợp lệ chứ không bị mạo danh từ các nguồn bên ngoài.
+
+
 # --- more
 1. Ledger system
 
