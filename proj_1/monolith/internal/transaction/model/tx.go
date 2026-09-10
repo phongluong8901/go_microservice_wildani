@@ -48,3 +48,20 @@ type ExternalTransferStatus struct {
 	Status         string `json:"status"`          //Trạng thái giao dịch: pending, success, failed, timeout
 	IdempotencyKey string `json:"idempotency_key"` //Khóa để ngăn chặn giao dịch trùng lặp, bắt buộc.
 }
+
+
+type ExternalTransferRequest struct {
+	TransferID     string          `json:"transfer_id" binding:"required" example:"external-transfer-id"`
+	ReceiverEmail  string          `json:"receiver_email" binding:"required,email" example:"receiver@example.com"`
+	Amount         decimal.Decimal `json:"amount" binding:"required,gt=0" example:"50000"`
+	Currency       string          `json:"currency" example:"IDR"`
+	IdempotencyKey string          `json:"idempotency_key" binding:"required" example:"unique-uuid-key-123"`
+	SenderUserID   string          `json:"sender_user_id" binding:"required" example:"gowallet-user-id"`
+	CallbackURL    string          `json:"callback_url,omitempty"`
+}
+
+type ExternalTransferStatus struct {
+	TransferID     string `json:"transfer_id"`
+	Status         string `json:"status"`
+	IdempotencyKey string `json:"idempotency_key"`
+}

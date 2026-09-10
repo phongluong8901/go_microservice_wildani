@@ -16,6 +16,7 @@ type Config struct {
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURL  string
+	WebhookSecret      string
 }
 
 func LoadConfig() *Config {
@@ -57,6 +58,11 @@ func LoadConfig() *Config {
 		googleRedirectURL = "http://localhost:8080/api/v1/auth/google/callback"
 	}
 
+	webhookSecret := os.Getenv("WEBHOOK_SECRET")
+	if webhookSecret == "" {
+		webhookSecret = "gowallet-webhook-secret-change-me"
+	}
+
 	return &Config{
 		DBDSN:              dsn,
 		RedisAddr:          redisAddr,
@@ -66,5 +72,6 @@ func LoadConfig() *Config {
 		GoogleClientID:     googleClientID,
 		GoogleClientSecret: googleClientSecret,
 		GoogleRedirectURL:  googleRedirectURL,
+		WebhookSecret:      webhookSecret,
 	}
 }

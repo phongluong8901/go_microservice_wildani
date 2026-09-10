@@ -11,7 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func AuthMiddleware(rdb *redis.Client) gin.HandlerFunc {
+func AuthMiddleware(rdb *redis.Client, jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -44,7 +44,7 @@ func AuthMiddleware(rdb *redis.Client) gin.HandlerFunc {
 		}
 
 		// validate token
-		claims, err := auth.ValidateToken(tokenString)
+		claims, err := auth.ValidateTokenWithType(jwtSecret, tokenString, "access")
 		if err != nil {
 			c.Error(customErr.NewAppError(http.StatusUnauthorized, "INVALID_TOKEN", "token is invalid or expired."))
 			c.Abort()
@@ -56,6 +56,26 @@ func AuthMiddleware(rdb *redis.Client) gin.HandlerFunc {
 		c.Set("email", claims.Email)
 		c.Set("role", claims.Role)
 		c.Set("token_string", tokenString) // store for logout needs
+
+		c.Next()
+	}
+}
+
+
+func APIKeyMiddleware(expectedKey string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		apiKey := c.GetHeader("X-API-Key")
+		if apiKey == "" {
+			c.Error(customErr.NewAppError(http.StatusUnauthorized, "MISSING_API_KEY", "API key is missing."))
+			c.Abort()
+			return
+		}
+
+		if apiKey != expectedKey {
+			c.Error(customErr.NewAppError(http.StatusUnauthorized, "INVALID_API_KEY", "API key is invalid."))
+			c.Abort()
+			return
+		}
 
 		c.Next()
 	}

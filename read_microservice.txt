@@ -71,6 +71,19 @@ go mod init github.com/bashocode/gowallet/microservices/transaction-service
 cd payment-service
 go mod init github.com/bashocode/gowallet/microservices/payment-service
 
+-- scheduler
+cd scheduler-service
+go mod init github.com/bashocode/gowallet/microservices/scheduler-service
+
+-- notification
+cd notification-service
+go mod init github.com/bashocode/gowallet/microservices/notification-service
+
+-- audit
+cd audit-service
+go mod init github.com/bashocode/gowallet/microservices/audit-service
+
+
 --- run
 
 -- auth
@@ -81,6 +94,9 @@ cd auth-service
 
 
 --- Makefifle.dev
+- tidy toan bo service
+make -f Makefile.dev tidy
+
 - build 6 service ra .exe
 make -f Makefile.dev build-linux
 
@@ -96,6 +112,7 @@ make migrateup-auth-service
 -- user-service
 -
 migrate create -ext sql -dir user-service/db/migrations -seq create_user_and_otp_tables
+migrate create -ext sql -dir user-service/db/migrations -seq create_notification_outbox_events
 
 -- wallet-service
 -
@@ -108,10 +125,19 @@ migrate create -ext sql -dir ledger-service/db/migrations -seq create_table_ledg
 -- transaction-service
 -
 migrate create -ext sql -dir transaction-service/db/migrations -seq add_transaction_table
+migrate create -ext sql -dir transaction-service/db/migrations -seq create_outbox_table
+migrate create -ext sql -dir transaction-service/db/migrations -seq alter-talbe-transaction-and-outbox-events
+migrate create -ext sql -dir transaction-service/db/migrations -seq add_sender_user_id_to_transactions
 
 -- payment-service
 -
 migrate create -ext sql -dir payment-service/db/migrations -seq create_payments_table
+migrate create -ext sql -dir payment-service/db/migrations -seq create_payment_outbox_events
+
+-- notification-service
+-
+migrate create -ext sql -dir notification-service/db/migrations -seq create_processed_notifications
+
 
 
 - generate tables service
@@ -151,6 +177,19 @@ protoc --go_out=. --go-grpc_out=. proto/transaction/transaction.proto
 - copy tu proto -> transaction-service
 cp -r github.com/bashocode/gowallet/microservices/transaction-service/proto/transaction/ transaction-service/proto/transaction/
 
+- generate file auth
+protoc --go_out=. --go-grpc_out=. proto/auth/auth.proto
+
+- copy tu proto -> auth-service
+cp -r github.com/bashocode/gowallet/microservices/auth-service/proto/auth/ auth-service/proto/auth/
+
+
+- generate file payment
+protoc --go_out=. --go-grpc_out=. proto/payment/payment.proto
+
+- copy tu proto -> payment-service
+cp -r github.com/bashocode/gowallet/microservices/payment-service/proto/payment/ payment-service/proto/payment/
+
 
 
 --- check cac api nao dung grpc
@@ -165,6 +204,10 @@ docker compose up --build -d
 
 docker compose up -d
 docker compose down
+
+--- swagger
+cd api-gateway
+~/go/bin/swag init -g cmd/main.go
 
 --- deploy
 
