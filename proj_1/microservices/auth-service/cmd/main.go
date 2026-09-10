@@ -1,45 +1,90 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	authGRPC "github.com/bashocode/gowallet/microservices/auth-service/internal/auth/grpc"
 	"github.com/bashocode/gowallet/microservices/auth-service/internal/auth/handler"
 	"github.com/bashocode/gowallet/microservices/auth-service/internal/auth/repository"
 	"github.com/bashocode/gowallet/microservices/auth-service/internal/auth/service"
+	pbAuth "github.com/bashocode/gowallet/microservices/auth-service/proto/auth"
 	"github.com/bashocode/gowallet/microservices/shared/config"
 	"github.com/bashocode/gowallet/microservices/shared/database"
+	sharedGRPC "github.com/bashocode/gowallet/microservices/shared/grpc"
 	"github.com/bashocode/gowallet/microservices/shared/logger"
 	"github.com/bashocode/gowallet/microservices/shared/middleware"
+	"github.com/bashocode/gowallet/microservices/shared/tracing"
 	pb "github.com/bashocode/gowallet/microservices/user-service/proto/user"
 	pbWallet "github.com/bashocode/gowallet/microservices/wallet-service/proto/wallet"
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
 	// Logger initializes automatically on import, but InitLogger remains available
-	logger.InitLogger()
-	logger.Log.Info("Starting Auth Microservice...")
 
 	cfg := config.LoadConfig()
+
+	logger.InitLogger(
+		logger.WithServiceName("auth-service"),
+		logger.WithLogstashAddr(cfg.LogstashAddr),
+	)
+	logger.Log.Info("Starting Auth Microservice...")
 
 	// Connect to Redis (for token blacklisting)
 	rdb, err := database.ConnectRedis(cfg.RedisAddr)
 	if err != nil {
-		logger.Fatal(nil, "Could not connect to Redis", "error", err)
+		logger.Fatal(context.Background(), "Could not connect to Redis", "error", err)
 	}
-	defer rdb.Close()
 
 	// Connect to MySQL (for refresh tokens)
 	db, err := database.ConnectWithRetry(cfg.DBDSN)
 	if err != nil {
-		logger.Fatal(nil, "Could not connect to database", "error", err)
+		logger.Fatal(context.Background(), "Could not connect to database", "error", err)
 	}
-	defer db.Close()
+
+	// Initialize OpenTelemetry Tracer
+	tp, err := tracing.InitTracer("auth-service", cfg.OTELCollectorAddr)
+	if err != nil {
+		logger.Log.Warn("Failed to initialize tracer, continuing without tracing: " + err.Error())
+	} else {
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = tp.Shutdown(shutdownCtx)
+		}()
+	}
+
+	userCreds, err := sharedGRPC.GetClientDialCredentials(
+		cfg.IsProduction(),
+		cfg.GRPCSSLCertPath,
+		cfg.GRPCSSLKeyPath,
+		cfg.GRPCSSLCAPath,
+		"user-service",
+	)
+	if err != nil {
+		logger.Fatal(context.Background(), "Failed to load gRPC client credentials for user-service", "error", err)
+	}
 
 	// Connect to User Service via gRPC
 	userConn, err := grpc.NewClient(
 		cfg.UserGRPCAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(userCreds),
+		grpc.WithChainUnaryInterceptor(
+			sharedGRPC.UnaryClientIdentity("auth-service"),
+			sharedGRPC.UnaryClientTimeout(5*time.Second),
+		),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithDefaultServiceConfig(`{
 			"methodConfig": [{
 				"name": [{"service": "user.UserService"}],
@@ -54,16 +99,31 @@ func main() {
 		}`),
 	)
 	if err != nil {
-		logger.Fatal(nil, "Failed to connect to user service", "error", err)
+		logger.Fatal(context.Background(), "Failed to connect to user service", "error", err)
 	}
-	defer userConn.Close()
 
 	userClient := pb.NewUserServiceClient(userConn)
+
+	walletCreds, err := sharedGRPC.GetClientDialCredentials(
+		cfg.IsProduction(),
+		cfg.GRPCSSLCertPath,
+		cfg.GRPCSSLKeyPath,
+		cfg.GRPCSSLCAPath,
+		"wallet-service",
+	)
+	if err != nil {
+		logger.Fatal(context.Background(), "Failed to load gRPC client credentials for wallet-service", "error", err)
+	}
 
 	// Connect to Wallet Service via gRPC (for OAuth user wallet creation)
 	walletConn, err := grpc.NewClient(
 		cfg.WalletGRPCAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(walletCreds),
+		grpc.WithChainUnaryInterceptor(
+			sharedGRPC.UnaryClientIdentity("auth-service"),
+			sharedGRPC.UnaryClientTimeout(5*time.Second),
+		),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithDefaultServiceConfig(`{
 			"loadBalancingConfig": [{"round_robin":{}}],
 			"methodConfig": [{
@@ -79,21 +139,91 @@ func main() {
 		}`),
 	)
 	if err != nil {
-		logger.Fatal(nil, "Failed to connect to wallet service", "error", err)
+		logger.Fatal(context.Background(), "Failed to connect to wallet service", "error", err)
 	}
-	defer walletConn.Close()
 
 	walletClient := pbWallet.NewWalletServiceClient(walletConn)
 
 	// Initialize layers
 	rtRepo := repository.NewMySQLRefreshTokenRepository(db)
-	authSvc := service.NewAuthService(rdb, rtRepo, userClient, walletClient)
+	authSvc := service.NewAuthService(rdb, rtRepo, userClient, walletClient, cfg.JWTSecret)
 	authHandler := handler.NewAuthHandler(authSvc)
 
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
+	r.Use(middleware.PrometheusMetrics())
+	r.Use(otelgin.Middleware("auth-service"))
 	r.Use(middleware.ErrorHandler())
+	r.Use(middleware.CorrelationID())
+
+	// Metrics endpoint for Prometheus
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	r.GET("/live", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "UP"})
+	})
+
+	r.GET("/ready", func(c *gin.Context) {
+		if err := db.PingContext(c.Request.Context()); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "DOWN", "reason": "MySQL database not responding"})
+			return
+		}
+		if err := rdb.Ping(c.Request.Context()).Err(); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "DOWN", "reason": "Redis not responding"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "READY"})
+	})
+
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "HEALTHY"})
+	})
+
+	// =========================================================
+	// Start gRPC Server (for internal service-to-service calls,
+	// e.g. scheduler-service triggering cleanup jobs)
+	// =========================================================
+	_, grpcPort, err := net.SplitHostPort(cfg.AuthGRPCAddr)
+	if err != nil {
+		logger.Fatal(context.Background(), "Failed to split Auth gRPC host port", "error", err)
+	}
+
+	authLis, err := net.Listen("tcp", ":"+grpcPort)
+	if err != nil {
+		logger.Fatal(context.Background(), "Failed to listen Auth gRPC", "error", err)
+	}
+
+	serverOpts, err := sharedGRPC.GetServerOptions(
+		cfg.IsProduction(),
+		cfg.GRPCSSLCertPath,
+		cfg.GRPCSSLKeyPath,
+		cfg.GRPCSSLCAPath,
+	)
+	if err != nil {
+		logger.Fatal(context.Background(), "Failed to load gRPC server credentials", "error", err)
+	}
+	serverOpts = append(
+		serverOpts,
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.ChainUnaryInterceptor(
+			sharedGRPC.RequireServiceIdentity(
+				!cfg.IsProduction(),
+				"scheduler-service",
+				"api-gateway",
+			),
+		),
+	)
+
+	grpcServer := grpc.NewServer(serverOpts...)
+	pbAuth.RegisterAuthServiceServer(grpcServer, authGRPC.NewAuthGRPCServer(rtRepo))
+
+	go func() {
+		logger.Log.Info("Auth gRPC Server running on " + cfg.AuthGRPCAddr)
+		if err := grpcServer.Serve(authLis); err != nil {
+			logger.Fatal(context.Background(), "Failed to serve Auth gRPC", "error", err)
+		}
+	}()
 
 	// Auth Routes
 	v1 := r.Group("/api/v1")
@@ -104,14 +234,60 @@ func main() {
 		v1.GET("/auth/google/callback", authHandler.GoogleCallback)
 
 		protected := v1.Group("")
-		protected.Use(middleware.AuthMiddleware(rdb))
+		protected.Use(middleware.AuthMiddleware(rdb, cfg.JWTSecret))
 		{
 			protected.POST("/auth/logout", authHandler.Logout)
 		}
 	}
 
-	logger.Log.Info("Auth Service listening on port " + cfg.AuthPort + "...")
-	if err := r.Run(":" + cfg.AuthPort); err != nil {
-		logger.Fatal(nil, "Auth Service failed", "error", err)
+	srv := &http.Server{
+		Addr:    ":" + cfg.AuthPort,
+		Handler: r,
 	}
+
+	go func() {
+		logger.Log.Info("Auth Service listening on port " + cfg.AuthPort + "...")
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Fatal(context.Background(), "Server listen failed", "error", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Log.Info("Shutdown signal received. Starting graceful shutdown...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Error(ctx, "HTTP Server forced to shutdown", "error", err.Error())
+	} else {
+		logger.Log.Info("HTTP Server closed cleanly.")
+	}
+
+	logger.Log.Info("Stopping gRPC server...")
+	grpcServer.GracefulStop()
+	logger.Log.Info("gRPC Server closed cleanly.")
+
+	logger.Log.Info("Closing gRPC client connections...")
+	if err := userConn.Close(); err != nil {
+		logger.Error(ctx, "Failed to close user service connection", "error", err.Error())
+	}
+	if err := walletConn.Close(); err != nil {
+		logger.Error(ctx, "Failed to close wallet service connection", "error", err.Error())
+	}
+
+	logger.Log.Info("Closing database and cache connections...")
+
+	if err := rdb.Close(); err != nil {
+		logger.Error(ctx, "Failed to close Redis client", "error", err.Error())
+	}
+
+	if err := db.Close(); err != nil {
+		logger.Error(ctx, "Failed to close MySQL connection", "error", err.Error())
+	}
+
+	logger.Log.Info("Auth Microservice successfully stopped.")
 }
