@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"net"
-
+	ledgerCache "github.com/bashocode/gowallet/microservices/ledger-service/internal/ledger/cache"
 	ledgerGRPC "github.com/bashocode/gowallet/microservices/ledger-service/internal/ledger/grpc"
 	ledgerHandler "github.com/bashocode/gowallet/microservices/ledger-service/internal/ledger/handler"
 	ledgerRepository "github.com/bashocode/gowallet/microservices/ledger-service/internal/ledger/repository"
@@ -66,7 +66,8 @@ func main() {
 
 	// Initialize layers
 	lRepo := ledgerRepository.NewMySQLLedgerRepository(db)
-	lSvc := ledgerService.NewLedgerService(lRepo, walletClient)
+	lCache := ledgerCache.NewLedgerCacheRepository(rdb)
+	lSvc := ledgerService.NewLedgerService(lRepo, lCache, walletClient)
 	lHandler := ledgerHandler.NewLedgerHandler(lSvc)
 
 	// Setup gRPC Server

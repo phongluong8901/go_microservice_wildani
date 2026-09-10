@@ -147,6 +147,41 @@ Hiệu suất cao: Viết bằng ngôn ngữ Go nên MinIO có tốc độ đọ
 
 Bảo mật tốt: Hỗ trợ mã hóa dữ liệu, quản lý quyền truy cập chi tiết (IAM, bucket policy) và tích hợp các công cụ kiểm soát an toàn.
 
+10. Cache-Aside Redis
+Cache-Aside (hay còn gọi là Lazy Loading) là một mô hình thiết kế phổ biến để đồng bộ dữ liệu giữa Database và Cache (như Redis).
+
+1. Cơ chế của Cache-Aside Pattern
+Khi ứng dụng cần đọc dữ liệu, nó sẽ thực hiện theo các bước sau:
+
+Kiểm tra Cache: Ứng dụng tìm dữ liệu trong Redis trước.
+
+Cache Hit: Nếu tìm thấy, trả về dữ liệu ngay lập tức.
+
+Cache Miss: Nếu không tìm thấy:
+
+Ứng dụng truy vấn trực tiếp vào Database để lấy dữ liệu.
+
+Sau khi có dữ liệu từ Database, ứng dụng ghi dữ liệu đó vào Redis (thường kèm theo thời gian hết hạn - TTL) để các lần yêu cầu sau có thể đọc từ cache.
+
+Trả về kết quả cho người dùng.
+
+Ưu điểm:
+
+Hệ thống chỉ lưu vào cache những gì thực sự được truy cập.
+
+Nếu Redis bị sập, hệ thống vẫn hoạt động bình thường (đọc trực tiếp từ DB).
+
+Tác dụng trong commit gowallet
+Giảm tải cho cơ sở dữ liệu (Database Offloading): Bằng cách lưu trữ kết quả các truy vấn thường xuyên (như lấy thông tin ví, số dư, hoặc thông tin user) vào Redis, ứng dụng sẽ giảm bớt số lượng truy vấn trực tiếp xuống MySQL. Điều này giúp hệ thống phản hồi nhanh hơn nhiều vì Redis hoạt động trên RAM.
+
+Tăng hiệu năng (Performance Optimization): Các tác vụ liên quan đến ví tiền thường yêu cầu độ trễ thấp. Khi dữ liệu đã được cache, thay vì phải thực hiện các phép join bảng phức tạp hoặc truy vấn đĩa cứng ở MySQL, ứng dụng chỉ cần lấy từ cache với tốc độ tính bằng micro giây.
+
+Tính nhất quán của dữ liệu: Trong commit này, việc triển khai Cache-Aside giúp bạn đảm bảo dữ liệu "nóng" nhất được ưu tiên nằm trong cache, đồng thời vẫn giữ được nguồn sự thật (source of truth) là database.
+
+Lưu ý quan trọng khi dùng Cache-Aside:
+Bạn cần đảm bảo rằng khi dữ liệu trong database thay đổi (ví dụ: thực hiện giao dịch nạp/rút tiền trong gowallet), bạn phải xóa hoặc cập nhật lại giá trị tương ứng trong Redis để tránh tình trạng "cache bị cũ" (stale data). Nếu không, người dùng có thể thấy số dư cũ dù tiền đã được cập nhật trong database.
+
+
 # --- more
 1. Ledger system
 
