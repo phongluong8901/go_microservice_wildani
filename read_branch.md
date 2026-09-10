@@ -249,3 +249,9 @@ git checkout -b p40_cursor_pagination
 git add .
 git commit -m "change: first"
 git push -u origin p40_cursor_pagination
+
+# --- -
+git checkout -b p41_OpenTelemetry_Jaeger
+git add .
+git commit -m "change: first"
+git push -u origin p41_OpenTelemetry_Jaeger
