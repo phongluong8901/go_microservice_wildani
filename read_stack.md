@@ -181,6 +181,23 @@ Tính nhất quán của dữ liệu: Trong commit này, việc triển khai Cac
 Lưu ý quan trọng khi dùng Cache-Aside:
 Bạn cần đảm bảo rằng khi dữ liệu trong database thay đổi (ví dụ: thực hiện giao dịch nạp/rút tiền trong gowallet), bạn phải xóa hoặc cập nhật lại giá trị tương ứng trong Redis để tránh tình trạng "cache bị cũ" (stale data). Nếu không, người dùng có thể thấy số dư cũ dù tiền đã được cập nhật trong database.
 
+11. Graceful Shutdown trong Microservices
+Graceful Shutdown (Tạm dịch: Đóng ứng dụng một cách lịch sự/êm ả) là một kỹ thuật quản lý vòng đời của ứng dụng khi nhận được tín hiệu dừng (ví dụ: lệnh tắt từ hệ thống, SIGTERM từ Docker/Kubernetes khi scale down, redeploy, hoặc bấm Ctrl+C).
+
+Thay vì ngắt kết nối ngay lập tức và đột ngột làm rơi các request đang xử lý, cơ chế này sẽ thực hiện lần lượt các bước sau:
+
+Ngừng nhận request mới: Ứng dụng báo hiệu cho Load Balancer hoặc API Gateway (như Nginx, Kong) rằng nó chuẩn bị tắt, từ chối hoặc không nhận thêm các kết nối HTTP mới.
+
+Xử lý dứt điểm các request đang dang dở: Cho phép các request hiện tại (đang chạy bên trong server) có một khoảng thời gian chờ nhất định (timeout) để hoàn thành công việc và trả về kết quả cho client.
+
+Đóng các tài nguyên hệ thống an toàn: Ngắt kết nối Database pools, đóng kết nối Redis, dừng các background worker / message queue consumers đang chạy ngầm, rồi mới thoát tiến trình hoàn toàn.
+
+Tác dụng trong project gowallet
+Không làm mất dữ liệu giao dịch dang dở: Tránh tình trạng người dùng vừa bấm nút thanh toán, nạp/rút tiền, hệ thống đang xử lý dở các lệnh ghi vào Database/Redis thì server bị tắt ngóm, dẫn đến lỗi lệch số dư hoặc giao dịch treo (pending).
+
+Đảm bảo tính toàn vẹn của kết nối (Connection Pooling): Giúp đóng các kết nối tới MySQL/PostgreSQL và Redis một cách trật tự, tránh làm hỏng hàng đợi kết nối hoặc gây rò rỉ tài nguyên (resource leak) trên server.
+
+Zero Downtime Deployment / Scaling: Khi chạy trên Docker hoặc Kubernetes, khi ứng dụng được cập nhật phiên bản mới hoặc scale hạ tầng, Kubernetes sẽ gửi tín hiệu SIGTERM. Nhờ Graceful Shutdown, service sẽ xử lý nốt các request cuối cùng rồi mới tắt, giúp người dùng hoàn toàn không gặp lỗi 502 Bad Gateway hay Connection Refused trong quá trình deploy.
 
 # --- more
 1. Ledger system
